@@ -4,8 +4,6 @@ import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { AppHeader } from '@/components/layout/AppHeader';
-import { AppSidebar } from '@/components/layout/AppSidebar';
-import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { Skeleton } from '@/components/ui/skeleton';
 
 
@@ -34,14 +32,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
   
   return (
-    <SidebarProvider defaultOpen>
-      <AppSidebar />
-      <SidebarInset className="flex flex-col">
-        <AppHeader />
-        <main className="flex-1 overflow-auto p-6">
-          {children}
-        </main>
-      </SidebarInset>
-    </SidebarProvider>
+    <div className="flex flex-col min-h-screen">
+      <AppHeader />
+      <main className="flex-1 overflow-auto p-6 bg-background">
+        {children}
+      </main>
+    </div>
   );
 }
