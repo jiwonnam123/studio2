@@ -6,12 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
+import { Trash2, RotateCcw } from 'lucide-react';
 
 const NUM_ROWS = 10;
 const NUM_COLS = 6;
-const MAX_HISTORY_ENTRIES = 30; // 늘어난 히스토리 크기
+const MAX_HISTORY_ENTRIES = 30;
 
-// Helper to generate column names like A, B, C, ... AA, AB, ...
 const getColumnName = (colIndex: number): string => {
   let name = '';
   let n = colIndex;
@@ -24,16 +24,26 @@ const getColumnName = (colIndex: number): string => {
 
 const initialGridData = () => Array(NUM_ROWS).fill(null).map(() => Array(NUM_COLS).fill(''));
 
+interface CellPosition {
+  r: number;
+  c: number;
+}
+
+interface SelectionRange {
+  start: CellPosition;
+  end: CellPosition;
+}
+
 export function DirectEntryTab() {
   const [gridData, setGridDataInternal] = useState<string[][]>(initialGridData);
   const [history, setHistory] = useState<string[][][]>(() => [initialGridData().map(row => [...row])]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState(0);
 
-  const [isFilling, setIsFilling] = useState(false);
-  const [fillOriginCell, setFillOriginCell] = useState<{ r: number; c: number; val: string } | null>(null);
-  const [fillTargetRange, setFillTargetRange] = useState<{ sr: number, sc: number, er: number, ec: number} | null>(null);
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectionStartCell, setSelectionStartCell] = useState<CellPosition | null>(null);
+  const [selectionEndCell, setSelectionEndCell] = useState<CellPosition | null>(null);
+  
   const tableRef = useRef<HTMLTableElement>(null);
-
 
   const pushStateToHistory = useCallback((newData: string[][]) => {
     const newHistoryRecord = newData.map(row => [...row]);
@@ -63,8 +73,11 @@ export function DirectEntryTab() {
         : row
     );
     setGridDataInternal(newGridData);
-    pushStateToHistory(newGridData);
-  }, [gridData, pushStateToHistory]);
+    // Only push to history if it's a new state from the current history point
+    if (JSON.stringify(newGridData) !== JSON.stringify(history[currentHistoryIndex])) {
+        pushStateToHistory(newGridData);
+    }
+  }, [gridData, pushStateToHistory, history, currentHistoryIndex]);
 
   const handlePaste = useCallback((
     startRowIndex: number,
@@ -75,7 +88,7 @@ export function DirectEntryTab() {
     const pastedText = event.clipboardData.getData('text/plain');
     const pastedRows = pastedText.split('\n');
     
-    const currentActiveGridData = gridData.map(row => [...row]); // Use a fresh copy for modification
+    const currentActiveGridData = gridData.map(row => [...row]);
 
     pastedRows.forEach((rowString, rOffset) => {
       const targetRow = startRowIndex + rOffset;
@@ -100,14 +113,25 @@ export function DirectEntryTab() {
       const isCtrlY = (event.ctrlKey || (isMac && event.metaKey)) && event.key.toLowerCase() === 'y';
       const isCtrlShiftZ = (event.ctrlKey || (isMac && event.metaKey)) && event.shiftKey && event.key.toLowerCase() === 'z';
 
-      if (isCtrlZ) { // Undo
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
+        // If focus is on an input, don't hijack undo/redo for the grid, let the input handle it.
+        // Except if it's OUR input grid and we want to handle it.
+        // For now, this simple check might be okay. More complex focus management might be needed.
+        if(tableRef.current && tableRef.current.contains(event.target as Node)) {
+           // It's one of our grid inputs, proceed with grid undo/redo
+        } else {
+            return;
+        }
+      }
+
+      if (isCtrlZ) {
         event.preventDefault();
         if (currentHistoryIndex > 0) {
           const prevIndex = currentHistoryIndex - 1;
           setGridDataInternal(history[prevIndex].map(row => [...row]));
           setCurrentHistoryIndex(prevIndex);
         }
-      } else if (isCtrlY || isCtrlShiftZ) { // Redo
+      } else if (isCtrlY || isCtrlShiftZ) {
         event.preventDefault();
         if (currentHistoryIndex < history.length - 1) {
           const nextIndex = currentHistoryIndex + 1;
@@ -123,90 +147,121 @@ export function DirectEntryTab() {
     };
   }, [history, currentHistoryIndex]);
 
-
-  // --- Drag to Fill Logic ---
-  const handleFillHandleMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>, r: number, c: number) => {
-    event.preventDefault();
-    event.stopPropagation(); // Prevent text selection or other input interactions
-    
-    setIsFilling(true);
-    setFillOriginCell({ r, c, val: gridData[r][c] });
-    setFillTargetRange({ sr: r, sc: c, er: r, ec: c });
-    
-    document.addEventListener('mouseup', handleGlobalMouseUp);
-  }, [gridData]);
-
-  const handleCellMouseEnter = useCallback((r: number, c: number) => {
-    if (!isFilling || !fillOriginCell) return;
-    
-    setFillTargetRange({
-        sr: Math.min(fillOriginCell.r, r),
-        sc: Math.min(fillOriginCell.c, c),
-        er: Math.max(fillOriginCell.r, r),
-        ec: Math.max(fillOriginCell.c, c),
-    });
-  }, [isFilling, fillOriginCell]);
+  // --- Drag to Select Logic ---
+  const handleCellMouseDown = useCallback((r: number, c: number) => {
+    setIsSelecting(true);
+    setSelectionStartCell({ r, c });
+    setSelectionEndCell({ r, c });
+    document.addEventListener('mouseup', handleDocumentMouseUp);
+  }, []);
   
-  const handleGlobalMouseUp = useCallback(() => {
-    if (!isFilling || !fillOriginCell || !fillTargetRange) {
-        // Cleanup if state is inconsistent, though this should ideally not be needed often
-        setIsFilling(false);
-        setFillOriginCell(null);
-        setFillTargetRange(null);
-        document.removeEventListener('mouseup', handleGlobalMouseUp);
-        return;
+  const handleCellMouseEnter = useCallback((r: number, c: number) => {
+    if (isSelecting) {
+      setSelectionEndCell({ r, c });
     }
+  }, [isSelecting]);
 
-    const { val } = fillOriginCell;
-    const { sr, sc, er, ec } = fillTargetRange;
+  const handleDocumentMouseUp = useCallback(() => {
+    setIsSelecting(false);
+    document.removeEventListener('mouseup', handleDocumentMouseUp);
+  }, []);
+
+  const getNormalizedSelection = (): SelectionRange | null => {
+    if (!selectionStartCell || !selectionEndCell) return null;
+    return {
+      start: {
+        r: Math.min(selectionStartCell.r, selectionEndCell.r),
+        c: Math.min(selectionStartCell.c, selectionEndCell.c),
+      },
+      end: {
+        r: Math.max(selectionStartCell.r, selectionEndCell.r),
+        c: Math.max(selectionStartCell.c, selectionEndCell.c),
+      },
+    };
+  };
+
+  const isCellSelected = (r: number, c: number): boolean => {
+    const selection = getNormalizedSelection();
+    if (!selection) return false;
+    return r >= selection.start.r && r <= selection.end.r &&
+           c >= selection.start.c && c <= selection.end.c;
+  };
+
+  const handleClearSelected = () => {
+    const selection = getNormalizedSelection();
+    if (!selection) return;
 
     const newGridData = gridData.map((row, rIdx) => {
-        if (rIdx >= sr && rIdx <= er) {
-            return row.map((cell, cIdx) => {
-                if (cIdx >= sc && cIdx <= ec) {
-                    return val;
-                }
-                return cell;
-            });
-        }
-        return row;
+      if (rIdx >= selection.start.r && rIdx <= selection.end.r) {
+        return row.map((cell, cIdx) => {
+          if (cIdx >= selection.start.c && cIdx <= selection.end.c) {
+            return '';
+          }
+          return cell;
+        });
+      }
+      return row;
     });
-
     setGridDataInternal(newGridData);
     pushStateToHistory(newGridData);
+    setSelectionStartCell(null);
+    setSelectionEndCell(null);
+  };
+  
+  const handleInitializeGrid = () => {
+    const emptyGrid = initialGridData();
+    setGridDataInternal(emptyGrid);
+    setHistory([emptyGrid.map(row => [...row])]); // Reset history with the new initial state
+    setCurrentHistoryIndex(0);
+    setSelectionStartCell(null);
+    setSelectionEndCell(null);
+  };
 
-    setIsFilling(false);
-    setFillOriginCell(null);
-    setFillTargetRange(null);
-    document.removeEventListener('mouseup', handleGlobalMouseUp);
-  }, [isFilling, fillOriginCell, fillTargetRange, gridData, pushStateToHistory]);
-
-
-  const columnHeaders = Array(NUM_COLS)
-    .fill(null)
-    .map((_, i) => getColumnName(i));
+  const columnHeaders = Array(NUM_COLS).fill(null).map((_, i) => getColumnName(i));
 
   const handleSubmit = () => {
     console.log("Grid Data to submit:", gridData);
     alert("Direct entry data submitted (simulated). Check console for data.");
   }
 
-  const isCellInFillRange = (r: number, c: number): boolean => {
-    if (!isFilling || !fillTargetRange) return false;
-    return r >= fillTargetRange.sr && r <= fillTargetRange.er &&
-           c >= fillTargetRange.sc && c <= fillTargetRange.ec;
-  };
-
   return (
     <div className="space-y-4 py-2 flex flex-col h-full">
-      <p className="text-sm text-muted-foreground flex-shrink-0">
-        Enter your inquiry details directly into the spreadsheet below. Use Tab or Shift+Tab to navigate.
-        Copy/paste from Excel is supported (tab-separated values). Use Ctrl+Z to Undo, Ctrl+Y to Redo.
-        Drag the small square at the bottom-right of a cell to fill adjacent cells.
-      </p>
+      <div className="flex-shrink-0 space-y-2">
+        <p className="text-sm text-muted-foreground">
+          Enter your inquiry details directly into the spreadsheet below. Use Tab or Shift+Tab to navigate.
+          Copy/paste from Excel is supported. Use Ctrl+Z to Undo, Ctrl+Y to Redo.
+          Click and drag to select a range of cells.
+        </p>
+        <div className="flex gap-2">
+          <Button 
+            type="button" 
+            variant="outline"
+            size="sm"
+            onClick={handleClearSelected}
+            disabled={!selectionStartCell}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Clear Selected
+          </Button>
+          <Button 
+            type="button" 
+            variant="outline"
+            size="sm"
+            onClick={handleInitializeGrid}
+          >
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Initialize Grid
+          </Button>
+        </div>
+      </div>
       <ScrollArea className="flex-grow border rounded-md shadow-sm bg-card">
         <div className="overflow-auto">
-          <table ref={tableRef} className="min-w-full divide-y divide-border text-sm select-none" style={{ userSelect: isFilling ? 'none' : 'auto' }}>
+          <table 
+            ref={tableRef} 
+            className="min-w-full divide-y divide-border text-sm"
+            style={{ userSelect: isSelecting ? 'none' : 'auto' }} // Prevent text selection during grid selection
+            onMouseLeave={() => { if (isSelecting) handleDocumentMouseUp(); }} // Stop selection if mouse leaves table
+          >
             <thead className="bg-muted/50 sticky top-0 z-10">
               <tr>
                 <th className="sticky left-0 z-20 w-12 px-2 py-2 text-center font-semibold text-muted-foreground bg-muted/50 border-r border-border">#</th>
@@ -229,7 +284,11 @@ export function DirectEntryTab() {
                   {row.map((cell, colIndex) => (
                     <td 
                         key={`cell-${rowIndex}-${colIndex}`} 
-                        className="p-0 relative"
+                        className={cn(
+                          "p-0 relative",
+                          isCellSelected(rowIndex, colIndex) && "bg-primary/20"
+                        )}
+                        onMouseDown={() => handleCellMouseDown(rowIndex, colIndex)}
                         onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
                     >
                       <Input
@@ -239,14 +298,9 @@ export function DirectEntryTab() {
                         onPaste={(e) => handlePaste(rowIndex, colIndex, e)}
                         className={cn(
                             "w-full h-full px-2 py-1.5 border-0 rounded-none focus:ring-1 focus:ring-primary focus:z-30 focus:relative focus:shadow-md",
-                            isCellInFillRange(rowIndex, colIndex) && "bg-primary/20 border-2 border-primary"
+                            isCellSelected(rowIndex, colIndex) && "border-2 border-primary"
                         )}
                         aria-label={`Cell ${columnHeaders[colIndex]}${rowIndex + 1}`}
-                      />
-                      <div
-                        className="absolute bottom-0 right-0 w-2 h-2 bg-primary cursor-crosshair hover:bg-primary/70 z-40"
-                        onMouseDown={(e) => handleFillHandleMouseDown(e, rowIndex, colIndex)}
-                        title="Drag to fill cells"
                       />
                     </td>
                   ))}
@@ -266,4 +320,3 @@ export function DirectEntryTab() {
     </div>
   );
 }
-
