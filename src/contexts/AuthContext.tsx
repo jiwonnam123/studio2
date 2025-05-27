@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { UserProfile } from '@/types';
@@ -9,9 +10,9 @@ interface AuthContextType {
   user: UserProfile | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string) => Promise<void>; // Simplified login
+  login: (email: string) => Promise<void>; 
   logout: () => void;
-  register: (email: string) => Promise<void>; // Simplified register
+  register: (email: string, name: string) => Promise<void>; // Added name parameter
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -35,22 +36,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
   
-  // Simulate API calls for login/register
   const login = async (email: string) => {
     setIsLoading(true);
-    // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 500));
-    const mockUser: UserProfile = { id: 'mock-user-id', email };
+    // In a real app, you'd fetch user data by email.
+    // For this mock, if a user previously registered and their data is in authData,
+    // we could try to use it, but the simplest mock is to create a new session user.
+    // This mock does not retain the name on simple login if the user registered with a name previously
+    // and then logged out. A real backend would handle this.
+    const mockUser: UserProfile = { id: 'mock-user-id-' + Date.now(), email }; 
     setAuthData({ isAuthenticated: true, user: mockUser });
     setIsLoading(false);
     router.push('/dashboard');
   };
 
-  const register = async (email: string) => {
+  const register = async (email: string, name: string) => { // Added name parameter
     setIsLoading(true);
-    // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 500));
-    const mockUser: UserProfile = { id: 'mock-user-id-' + Date.now(), email };
+    const mockUser: UserProfile = { id: 'mock-user-id-' + Date.now(), email, name }; // Store name
     setAuthData({ isAuthenticated: true, user: mockUser });
     setIsLoading(false);
     router.push('/dashboard');

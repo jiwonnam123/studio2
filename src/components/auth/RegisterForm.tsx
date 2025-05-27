@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,6 +29,7 @@ export function RegisterForm() {
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(RegisterSchema),
     defaultValues: {
+      name: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -36,7 +38,7 @@ export function RegisterForm() {
 
   async function onSubmit(data: RegisterFormValues) {
     try {
-      await register(data.email); // Simplified register
+      await register(data.email, data.name); // Pass name to register function
       toast({
         title: "Registration Successful",
         description: "Your account has been created.",
@@ -61,6 +63,19 @@ export function RegisterForm() {
       <CardContent>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Your Name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="email"
