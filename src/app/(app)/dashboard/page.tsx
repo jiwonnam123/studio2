@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from 'next/link';
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { InquiryModal } from '@/components/modals/inquiry/InquiryModal'; // Added import
 
 const FORMS_STORAGE_KEY = 'formflow_forms';
 
@@ -29,6 +31,7 @@ export default function DashboardPage() {
   const [forms, setForms] = useLocalStorage<FormDefinition[]>(FORMS_STORAGE_KEY, []);
   const [searchTerm, setSearchTerm] = useState('');
   const [mounted, setMounted] = useState(false);
+  const [isInquiryModalOpen, setIsInquiryModalOpen] = useState(false); // State for new modal
 
   useEffect(() => {
     setMounted(true); // Ensure localStorage is accessed only on client
@@ -103,11 +106,10 @@ export default function DashboardPage() {
             Manage, edit, and view submissions for your forms.
           </p>
         </div>
-        <Link href="/forms/create">
-          <Button>
-            <PlusCircle className="mr-2 h-4 w-4" /> Create New Form
-          </Button>
-        </Link>
+        {/* Modified Button to open InquiryModal */}
+        <Button onClick={() => setIsInquiryModalOpen(true)}>
+          <PlusCircle className="mr-2 h-4 w-4" /> Create New Form
+        </Button>
       </div>
 
       <div className="flex items-center gap-2">
@@ -131,7 +133,10 @@ export default function DashboardPage() {
           <h3 className="text-xl font-semibold">No forms found</h3>
           <p className="text-muted-foreground">
             {searchTerm ? "Try adjusting your search or " : ""}
-            <Link href="/forms/create" className="text-primary hover:underline">create a new form</Link>.
+            {/* Link inside paragraph for creating form - can also open modal */}
+            <Button variant="link" className="p-0 h-auto text-base" onClick={() => setIsInquiryModalOpen(true)}>
+              create a new form
+            </Button>.
           </p>
         </div>
       ) : (
@@ -190,6 +195,8 @@ export default function DashboardPage() {
           ))}
         </div>
       )}
+      {/* Inquiry Modal */}
+      <InquiryModal open={isInquiryModalOpen} onOpenChange={setIsInquiryModalOpen} />
     </div>
   );
 }
