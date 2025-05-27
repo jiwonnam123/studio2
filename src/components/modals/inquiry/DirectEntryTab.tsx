@@ -41,6 +41,35 @@ export function DirectEntryTab() {
     setGridData(newData);
   };
 
+  const handlePaste = (
+    startRowIndex: number,
+    startColIndex: number,
+    event: React.ClipboardEvent<HTMLInputElement>
+  ) => {
+    event.preventDefault();
+    const pastedText = event.clipboardData.getData('text/plain');
+    const pastedRows = pastedText.split('\n');
+
+    setGridData(currentGridData => {
+      const newGridData = currentGridData.map(row => [...row]); // Create a mutable copy
+
+      pastedRows.forEach((rowString, rOffset) => {
+        const targetRow = startRowIndex + rOffset;
+        if (targetRow < NUM_ROWS) {
+          // Standard spreadsheet paste uses tab as column delimiter
+          const cells = rowString.split('\t');
+          cells.forEach((cellValue, cOffset) => {
+            const targetCol = startColIndex + cOffset;
+            if (targetCol < NUM_COLS) {
+              newGridData[targetRow][targetCol] = cellValue;
+            }
+          });
+        }
+      });
+      return newGridData;
+    });
+  };
+
   const columnHeaders = Array(NUM_COLS)
     .fill(null)
     .map((_, i) => getColumnName(i));
@@ -55,7 +84,7 @@ export function DirectEntryTab() {
     <div className="space-y-4 py-2 flex flex-col h-full">
       <p className="text-sm text-muted-foreground flex-shrink-0">
         Enter your inquiry details directly into the spreadsheet below.
-        Use Tab or Shift+Tab to navigate between cells.
+        Use Tab or Shift+Tab to navigate between cells. You can also copy/paste from Excel.
       </p>
       <ScrollArea className="flex-grow border rounded-md shadow-sm bg-card">
         <div className="overflow-auto">
@@ -85,6 +114,7 @@ export function DirectEntryTab() {
                         type="text"
                         value={cell}
                         onChange={(e) => handleInputChange(rowIndex, colIndex, e)}
+                        onPaste={(e) => handlePaste(rowIndex, colIndex, e)}
                         className="w-full h-full px-2 py-1.5 border-0 rounded-none focus:ring-1 focus:ring-primary focus:z-30 focus:relative focus:shadow-md"
                         aria-label={`Cell ${columnHeaders[colIndex]}${rowIndex + 1}`}
                       />
