@@ -98,10 +98,10 @@ export function LoginForm() {
       if (error.code) {
         switch (error.code) {
           case 'auth/popup-closed-by-user':
-            errorMessage = "Login cancelled. The Google sign-in popup was closed by you or closed prematurely. Ensure popups are allowed and third-party cookies are not strictly blocked for this site. Also, check if this website's domain is correctly authorized in your Firebase project.";
+            errorMessage = "Login cancelled. The Google sign-in popup was closed. If you didn't close it manually, please check if your browser is blocking popups or restricting third-party cookies for this site. Some browser extensions can also interfere.";
             break;
           case 'auth/cancelled-popup-request':
-             errorMessage = "Login cancelled. Multiple popups were opened or the request was cancelled.";
+             errorMessage = "Login cancelled. This might happen if multiple popups were opened, the request was cancelled, or due to browser security settings (like popup or third-party cookie restrictions). Please try again, ensuring only one login attempt is active.";
             break;
           case 'auth/popup-blocked-by-browser':
             errorMessage = "Login failed. Please enable popups for this site to sign in with Google.";
@@ -109,7 +109,7 @@ export function LoginForm() {
           case 'auth/account-exists-with-different-credential':
             errorMessage = "An account already exists with this email but used a different sign-in method. Try that method, or use a different Google account.";
             break;
-          case 'auth/unauthorized-domain':
+          case 'auth/unauthorized-domain': // This case was added previously
             errorMessage = "Login failed. This website's domain is not authorized for Google Sign-In. Please contact the site administrator or check Firebase project settings if you are the developer.";
             break;
           case 'auth/operation-not-allowed':
