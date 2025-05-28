@@ -36,15 +36,15 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
     setUploadedFile(file);
     if (!file || file.status !== 'success') {
       // Reset validation state if file is removed or not successful
-      if (excelValidationState !== null) { // Prevent unnecessary update if already null
+      // Only update if it's not already null to prevent potential loop with ExcelUploadTab's useEffect
+      if (excelValidationState !== null) { 
         setExcelValidationState(null);
       }
     }
-  }, [excelValidationState]); // excelValidationState added to prevent stale closure issues if it were used directly in setExcelValidationState
+  }, [excelValidationState]);
 
   const handleExcelValidationComplete = useCallback((result: ExcelValidationResult) => {
     setExcelValidationState(prevState => {
-      // Prevent update if the new result is effectively the same as the old one
       if (JSON.stringify(prevState) === JSON.stringify(result)) {
         return prevState;
       }
@@ -107,19 +107,16 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
   };
 
   const isExcelSubmitDisabled = () => {
-    if (activeTab !== 'excel') return false; // Not disabled if not excel tab (other tab might have own logic)
+    if (activeTab !== 'excel') return false; 
     if (isSubmitting) return true;
     if (!uploadedFile || uploadedFile.status !== 'success') return true;
     if (!excelValidationState || excelValidationState.error !== null || !excelValidationState.hasData) return true;
     return false;
   };
 
-  // Placeholder for direct entry submit disabled logic
   const isDirectEntrySubmitDisabled = () => {
     if (activeTab !== 'direct') return false;
     if (isSubmitting) return true;
-    // Add logic for direct entry validation if needed
-    // e.g., check if gridData is empty or invalid
     return false; 
   };
 
@@ -146,9 +143,10 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
                 uploadedFileState={uploadedFile} 
                 onFileChange={handleFileChange}
                 onValidationComplete={handleExcelValidationComplete}
+                excelValidationState={excelValidationState} // Pass the state here
               />
             </TabsContent>
-            <TabsContent value="direct" className="mt-0 h-full"> {/* Ensure DirectEntryTab can take full height */}
+            <TabsContent value="direct" className="mt-0 h-full"> 
               <DirectEntryTab />
             </TabsContent>
           </div>

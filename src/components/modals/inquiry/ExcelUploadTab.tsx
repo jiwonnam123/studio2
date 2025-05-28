@@ -22,6 +22,7 @@ interface ExcelUploadTabProps {
   uploadedFileState: UploadedFile | null;
   onFileChange: (file: UploadedFile | null) => void;
   onValidationComplete: (result: ExcelValidationResult) => void;
+  excelValidationState: ExcelValidationResult | null; // Added prop
 }
 
 const customColumnHeaders = [
@@ -35,7 +36,7 @@ const customColumnHeaders = [
 
 const MAX_PREVIEW_ROWS = 10; 
 
-export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationComplete }: ExcelUploadTabProps) {
+export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationComplete, excelValidationState }: ExcelUploadTabProps) {
   const [previewData, setPreviewData] = useState<string[][] | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   // parseError state is now handled by onValidationComplete communication to parent
@@ -105,11 +106,11 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
         onValidationComplete(validationResult);
       };
       reader.readAsArrayBuffer(file);
-    } catch (e: any) { // Changed '=>' to '{'
+    } catch (e: any) { 
       console.error("Error initiating file read:", e);
-      validationResult = { error: `Error reading file: ${e.message}`, hasData: false }; // Use validationResult
+      validationResult = { error: `Error reading file: ${e.message}`, hasData: false };
       setIsParsing(false);
-      onValidationComplete(validationResult); // Ensure onValidationComplete is called
+      onValidationComplete(validationResult);
     }
   }, [onValidationComplete, isParsing]); 
 
@@ -126,7 +127,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uploadedFileState, processFile, onValidationComplete]); // Added onValidationComplete to dep array
+  }, [uploadedFileState, processFile, onValidationComplete]); 
 
   const validationErrorToDisplay = excelValidationState?.error;
   const isSuccessWithoutError = uploadedFileState?.status === 'success' && !validationErrorToDisplay && excelValidationState?.hasData;
@@ -247,7 +248,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
       {uploadedFileState && uploadedFileState.status === 'success' && !previewData && !isParsing && !validationErrorToDisplay && (
         <div className="flex flex-col items-center justify-center p-4 text-muted-foreground border-2 border-dashed rounded-lg min-h-[100px]">
             <FileText className="w-8 h-8 mb-2"/>
-            <p>File processed. {excelValidationState && !excelValidationState.hasData && !excelValidationState.error ? "No data rows found in the file." : "No data to preview."}</p>
+            <p>{excelValidationState && !excelValidationState.hasData && !excelValidationState.error ? "No data rows found in the file." : "No data to preview."}</p>
         </div>
       )}
 
