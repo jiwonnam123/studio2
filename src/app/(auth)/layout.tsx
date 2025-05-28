@@ -39,8 +39,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-       <div className="absolute top-8 left-8">
-        <Link href="/" className="flex items-center gap-2 text-xl font-semibold text-foreground">
+       <div className="absolute top-4 left-4"> {/* Reduced top/left offset */}
+        <Link href="/" className="flex items-center"> {/* Simplified Link className */}
           <Image
             src="/adpopcorn-logo.svg"
             alt="Adpopcorn Logo"
@@ -59,4 +59,3 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     </div>
   );
 }
-
