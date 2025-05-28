@@ -1,11 +1,11 @@
 
 "use client";
 
+import React, { useEffect, useState, useMemo } from 'react'; // Added React import
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Eye, Trash2, ListChecks, MoreHorizontal, Edit, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { PlusCircle, Eye, Trash2, ListChecks, MoreHorizontal, Edit, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { SubmittedInquiry, SubmittedInquiryDataRow } from '@/types';
-import { useEffect, useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import {
   AlertDialog,
@@ -17,23 +17,24 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { toast } from '@/hooks/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { InquiryModal } from '@/components/modals/inquiry/InquiryModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { firestore } from '@/lib/firebase';
 import { collection, query, where, orderBy, onSnapshot, Timestamp, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from '@/components/ui/table';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuRadioGroup, DropdownMenuRadioItem } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Input } from '@/components/ui/input'; // For admin notes later
-import { Textarea } from '@/components/ui/textarea'; // For admin notes later
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 const ADMIN_EMAIL = 'jirrral@gmail.com';
 const STATUS_OPTIONS = ["Pending", "In Progress", "On Hold", "Resolved", "Closed", "Requires Info"];
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [submittedInquiries, setSubmittedInquiries] = useState<SubmittedInquiry[]>([]);
   const [isLoadingInquiries, setIsLoadingInquiries] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -70,17 +71,19 @@ export default function DashboardPage() {
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       console.log(`[Dashboard] onSnapshot triggered. Found ${querySnapshot.docs.length} documents.`);
-      const fetchedInquiries = querySnapshot.docs.map(doc => {
-        const data = doc.data();
+      const fetchedInquiries = querySnapshot.docs.map(docSnapshot => { // Renamed doc to docSnapshot to avoid conflict
+        const data = docSnapshot.data();
         let submittedAtStr = '';
         if (data.submittedAt instanceof Timestamp) {
           submittedAtStr = data.submittedAt.toDate().toISOString();
         } else if (typeof data.submittedAt === 'string') {
-          submittedAtStr = data.submittedAt; // Should ideally be Timestamp
+          // This case should ideally not happen if submittedAt is always a serverTimestamp
+          // but handle it defensively.
+          submittedAtStr = data.submittedAt;
         } else if (data.submittedAt && typeof data.submittedAt.toDate === 'function') {
            submittedAtStr = data.submittedAt.toDate().toISOString();
         } else {
-            console.warn(`[Dashboard] Document ${doc.id} has invalid submittedAt:`, data.submittedAt);
+            console.warn(`[Dashboard] Document ${docSnapshot.id} has invalid submittedAt:`, data.submittedAt);
             submittedAtStr = new Date(0).toISOString(); // Fallback for invalid date
         }
 
@@ -97,7 +100,7 @@ export default function DashboardPage() {
         }));
 
         return {
-          id: doc.id,
+          id: docSnapshot.id, // Use docSnapshot.id here
           userId: data.userId,
           source: data.source,
           fileName: data.fileName,
@@ -117,7 +120,7 @@ export default function DashboardPage() {
       console.log("[Dashboard] Unsubscribing from inquiries snapshot listener.");
       unsubscribe();
     };
-  }, [user?.id, isAdmin]); // isAdmin added as dependency
+  }, [user?.id, isAdmin, toast]); // Added toast to dependency array as it's used in error callback
 
   const handleStatusChange = async (inquiryId: string, dataRowIndex: number, newStatus: string) => {
     if (!isAdmin) {
@@ -126,8 +129,6 @@ export default function DashboardPage() {
     }
     try {
         const inquiryRef = doc(firestore, "inquiries", inquiryId);
-        // To update an item in an array, we need to fetch the doc, modify the array, and update the whole array.
-        // This is not ideal for large arrays but is standard for Firestore array updates.
         const currentInquiry = submittedInquiries.find(inq => inq.id === inquiryId);
         if (!currentInquiry) {
             toast({ title: "Error", description: "Inquiry not found locally.", variant: "destructive" });
@@ -148,8 +149,6 @@ export default function DashboardPage() {
     }
   };
   
-  // TODO: Implement admin notes update logic similar to handleStatusChange
-
   if (!mounted) {
     return (
        <div className="space-y-8 p-4 md:p-6">
@@ -181,7 +180,7 @@ export default function DashboardPage() {
         break;
       case "resolved":
       case "closed":
-        variant = "default"; // Using primary color for resolved/closed
+        variant = "default"; 
         icon = <CheckCircle className="mr-1 h-3 w-3 text-green-500" />;
         break;
       case "on hold":
@@ -192,6 +191,9 @@ export default function DashboardPage() {
          variant = "destructive";
          icon = <XCircle className="mr-1 h-3 w-3 text-red-500" />;
         break;
+      default:
+        variant = "secondary"; // Default for unknown statuses
+        icon = <ListChecks className="mr-1 h-3 w-3 text-muted-foreground" />
     }
     return <Badge variant={variant} className="capitalize text-xs py-0.5 px-1.5 flex items-center w-fit">{icon} {status}</Badge>;
   };
@@ -309,7 +311,7 @@ export default function DashboardPage() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {inquiry.data.map((row, rowIndex) => (
+                                {Array.isArray(inquiry.data) && inquiry.data.map((row, rowIndex) => (
                                     <TableRow key={`${inquiry.id}-row-${rowIndex}`} className="text-xs hover:bg-muted/5">
                                         <TableCell className="py-1.5 truncate max-w-[100px]">{row.campaignKey}</TableCell>
                                         <TableCell className="py-1.5 truncate max-w-[120px]">{row.campaignName}</TableCell>
