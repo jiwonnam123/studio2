@@ -26,8 +26,11 @@ export function UserNav() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full p-0 flex items-center justify-center">
-          <UserCircleIcon className="h-6 w-6 text-muted-foreground" />
+        <Button 
+          variant="ghost" 
+          className="relative h-10 w-10 rounded-full p-0 flex items-center justify-center hover:bg-accent/70"
+        >
+          <UserCircleIcon className="h-9 w-9 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
