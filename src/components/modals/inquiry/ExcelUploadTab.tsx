@@ -13,9 +13,18 @@ interface ExcelUploadTabProps {
 
 export function ExcelUploadTab({ onFileAccepted }: ExcelUploadTabProps) {
   const handleDownloadTemplate = () => {
-    // In a real app, this would trigger a file download
-    alert('Excel template download initiated (simulated).');
-    // Example: window.location.href = '/path/to/template.xlsx';
+    // Create a temporary anchor element
+    const link = document.createElement('a');
+    // Set the href to the path of your template file in the public folder
+    link.href = '/inquiry_template.xlsx'; 
+    // Set the download attribute to suggest a filename for the user
+    link.setAttribute('download', 'inquiry_template.xlsx');
+    // Append the link to the body (required for Firefox)
+    document.body.appendChild(link);
+    // Programmatically click the link to trigger the download
+    link.click();
+    // Clean up by removing the link
+    document.body.removeChild(link);
   };
 
   return (
