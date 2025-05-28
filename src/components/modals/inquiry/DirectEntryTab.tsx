@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -33,7 +33,12 @@ const customColumnHeaders = [
   "비고"
 ];
 
-export function DirectEntryTab() {
+export interface DirectEntryTabHandles {
+  getGridData: () => string[][];
+}
+
+// eslint-disable-next-line react/display-name
+export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) => {
   const [gridData, setGridDataInternal] = useState<string[][]>(initialGridData);
   const [history, setHistory] = useState<string[][][]>(() => [initialGridData().map(row => [...row])]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState(0);
@@ -43,7 +48,13 @@ export function DirectEntryTab() {
   const [selectionEndCell, setSelectionEndCell] = useState<CellPosition | null>(null);
   
   const tableRef = useRef<HTMLTableElement>(null);
-  const focusedCellRef = useRef<HTMLInputElement | null>(null); // To manage focus after certain operations
+
+  useImperativeHandle(ref, () => ({
+    getGridData: () => {
+      // Filter out completely empty rows before returning
+      return gridData.filter(row => row.some(cell => cell.trim() !== ''));
+    }
+  }));
 
   const pushStateToHistory = useCallback((newData: string[][]) => {
     const newHistoryRecord = newData.map(row => [...row]);
@@ -76,7 +87,7 @@ export function DirectEntryTab() {
     if (JSON.stringify(newGridData) !== JSON.stringify(history[currentHistoryIndex])) {
         pushStateToHistory(newGridData);
     }
-  }, [gridData, pushStateToHistory, history, currentHistoryIndex]);
+  }, [gridData, history, currentHistoryIndex, pushStateToHistory]);
 
   const handlePaste = useCallback((
     startRowIndex: number,
@@ -118,11 +129,10 @@ export function DirectEntryTab() {
       },
     };
   }, [selectionStartCell, selectionEndCell]);
-
+  
   const handleDocumentMouseUp = useCallback(() => {
     if (isSelecting) {
         setIsSelecting(false);
-        // Optional: Focus the starting cell of the selection or the last active input
         if (selectionStartCell && tableRef.current) {
             const inputEl = tableRef.current.querySelector<HTMLInputElement>(`input[data-row="${selectionStartCell.r}"][data-col="${selectionStartCell.c}"]`);
             inputEl?.focus();
@@ -137,12 +147,10 @@ export function DirectEntryTab() {
     };
   }, [handleDocumentMouseUp]);
 
-
   const handleCellMouseDown = useCallback((r: number, c: number) => {
     setIsSelecting(true);
     setSelectionStartCell({ r, c });
     setSelectionEndCell({ r, c }); 
-    // No mouseup listener added here anymore; it's global
   }, []);
   
   const handleCellMouseEnter = useCallback((r: number, c: number) => {
@@ -177,7 +185,7 @@ export function DirectEntryTab() {
         }
       } else if ((event.key === 'Delete' || event.key === 'Backspace')) {
         const selection = getNormalizedSelection();
-        if (selection && !isInputFocused) { // Only delete if a range is selected AND no input is focused
+        if (selection && !isInputFocused) { 
             event.preventDefault(); 
             let changed = false;
             const newGridData = gridData.map((row, rIdx) => {
@@ -199,17 +207,12 @@ export function DirectEntryTab() {
                 setGridDataInternal(newGridData);
                 pushStateToHistory(newGridData);
             }
-            // After deleting, clear selection and focus on the start cell of the deleted range
             if (selectionStartCell && tableRef.current) {
                 const inputEl = tableRef.current.querySelector<HTMLInputElement>(`input[data-row="${selectionStartCell.r}"][data-col="${selectionStartCell.c}"]`);
                 inputEl?.focus();
             }
             setSelectionStartCell(null);
             setSelectionEndCell(null);
-
-        } else if (isInputFocused && (event.key === 'Backspace' && (activeElement as HTMLInputElement).selectionStart === 0 && (activeElement as HTMLInputElement).selectionEnd === 0)) {
-            // Allow default backspace behavior to potentially move to previous cell if input is empty at start.
-            // This case might need more sophisticated cell navigation logic, which is not implemented here.
         }
       }
     };
@@ -218,8 +221,7 @@ export function DirectEntryTab() {
     return () => {
       document.removeEventListener('keydown', handleGlobalKeyDown);
     };
-  }, [history, currentHistoryIndex, getNormalizedSelection, gridData, pushStateToHistory, selectionStartCell, isSelecting]);
-
+  }, [history, currentHistoryIndex, getNormalizedSelection, gridData, pushStateToHistory, selectionStartCell]);
 
   const isCellSelected = (r: number, c: number): boolean => {
     const selection = getNormalizedSelection();
@@ -235,24 +237,22 @@ export function DirectEntryTab() {
     if (currentGridIsNotEmpty) {
         setGridDataInternal(emptyGrid);
         pushStateToHistory(emptyGrid); 
-    } else if (history.length > 1 || currentHistoryIndex !== 0) { // If grid is empty but history exists
-        setGridDataInternal(emptyGrid); // Ensure grid is visually empty
+    } else if (history.length > 1 || currentHistoryIndex !== 0) { 
+        setGridDataInternal(emptyGrid);
         setHistory([emptyGrid.map(row => [...row])]); 
         setCurrentHistoryIndex(0);
     }
     setSelectionStartCell(null);
     setSelectionEndCell(null);
-    // Focus on the first cell (A1) after initialization
     if (tableRef.current) {
         const firstInput = tableRef.current.querySelector<HTMLInputElement>('input[data-row="0"][data-col="0"]');
         firstInput?.focus();
     }
   }, [gridData, history.length, currentHistoryIndex, pushStateToHistory]);
 
-
   return (
     <div className="space-y-4 py-2 flex flex-col h-full">
-      <div className="flex-shrink-0 space-y-2">
+      <div className="flex-shrink-0">
         <div className="flex justify-end items-center">
             <Button 
                 type="button" 
@@ -271,9 +271,6 @@ export function DirectEntryTab() {
             ref={tableRef} 
             className="min-w-full divide-y divide-border text-sm"
             style={{ userSelect: isSelecting ? 'none' : 'auto' }} 
-            onMouseLeave={() => {
-                // if (isSelecting) setIsSelecting(false); 
-            }}
           >
             <thead className="bg-muted/50 sticky top-0 z-10">
               <tr>
@@ -310,8 +307,7 @@ export function DirectEntryTab() {
                         onChange={(e) => handleInputChange(rowIndex, colIndex, e)}
                         onPaste={(e) => handlePaste(rowIndex, colIndex, e)}
                         onFocus={(e) => {
-                            focusedCellRef.current = e.target;
-                            if(isSelecting) setIsSelecting(false); // Stop selection when an input is focused by click/tab
+                            if(isSelecting) setIsSelecting(false);
                         }}
                         className={cn(
                             "w-full h-full px-2 py-1.5 rounded-none focus:ring-1 focus:ring-primary focus:z-30 focus:relative focus:shadow-md",
@@ -334,6 +330,4 @@ export function DirectEntryTab() {
       </ScrollArea>
     </div>
   );
-}
-
-    
+});

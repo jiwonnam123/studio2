@@ -1,3 +1,4 @@
+
 export type FormFieldType =
   | 'text'
   | 'email'
@@ -56,3 +57,23 @@ export interface UserProfile {
   name?: string | null; // Firebase displayName can be null
 }
 
+// Inquiry data structure for Firestore
+export interface SubmittedInquiryDataRow {
+  campaignKey: string;
+  campaignName: string;
+  adidOrIdfa: string;
+  userName: string;
+  contact: string;
+  remarks: string;
+  // Add any other fixed columns if necessary, or allow flexible columns
+  [key: string]: string; // Allows for potential extra columns if needed, though we aim for 6 fixed
+}
+
+export interface SubmittedInquiry {
+  id?: string; // Firestore document ID, will be auto-generated
+  userId: string;
+  submittedAt: any; // Firestore ServerTimestamp
+  source: 'excel' | 'direct';
+  fileName?: string; // For excel uploads
+  data: SubmittedInquiryDataRow[];
+}
