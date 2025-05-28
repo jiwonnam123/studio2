@@ -1,8 +1,10 @@
+
 "use client";
 
 import React, { useEffect } from 'react';
-import { MountainIcon, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 
@@ -44,15 +46,14 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
        <div className="absolute top-8 left-8">
         <Link href="/" className="flex items-center gap-2 text-xl font-semibold text-foreground">
-          <MountainIcon className="h-7 w-7 text-primary" />
-          <span>FormFlow</span>
+          <Image src="https://placehold.co/150x28.png" alt="Adpopcorn Logo" width={150} height={28} data-ai-hint="Adpopcorn logo" />
         </Link>
       </div>
       <div className="w-full max-w-md">
         {children} {/* This will be LoginForm or RegisterForm */}
       </div>
        <footer className="absolute bottom-8 text-center text-sm text-muted-foreground">
-        © {new Date().getFullYear()} FormFlow. All rights reserved.
+        © {new Date().getFullYear()} Adpopcorn. All rights reserved.
       </footer>
     </div>
   );
