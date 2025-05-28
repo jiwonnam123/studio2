@@ -19,13 +19,13 @@ self.onmessage = async (event: MessageEvent<WorkerParseRequest>) => {
   const isLargeFile = fileSize > 5 * 1024 * 1024; // 5MB
 
   console.log("🔧 [Worker] 2. 파일 크기:", fileSize, "bytes. 대용량 파일 여부:", isLargeFile);
-  if (file.size > 1024 * 1024) { // 1MB
+  if (fileSize > 1024 * 1024) { // 1MB
     console.warn("🔧 [Worker] 대용량 파일 감지 (1MB 이상):", fileSize, "bytes");
   }
 
   self.postMessage({ type: 'progress', stage: 'received', progress: 10, fileSize } as WorkerParseResponse);
 
-  let response: WorkerParseResponse = {
+  let response: Omit<WorkerParseResponse, 'type' | 'stage' | 'progress'> = { // type, stage, progress는 최종 응답에 필요 없음
     success: false,
     error: null,
     previewData: null,
@@ -36,7 +36,6 @@ self.onmessage = async (event: MessageEvent<WorkerParseRequest>) => {
     fileSize,
     processingTime: 0,
     isLargeFile,
-    type: 'result'
   };
 
   /*
@@ -46,7 +45,7 @@ self.onmessage = async (event: MessageEvent<WorkerParseRequest>) => {
     response.error = "파일이 너무 큽니다. 500KB 이하 파일을 사용해주세요.";
     response.success = false;
     response.processingTime = performance.now() - startTime;
-    self.postMessage(response);
+    self.postMessage({ ...response, type: 'result' });
     return;
   }
   */
@@ -60,6 +59,7 @@ self.onmessage = async (event: MessageEvent<WorkerParseRequest>) => {
 
     console.log("🔧 [Worker] 5. XLSX.read 시작", performance.now());
     self.postMessage({ type: 'progress', stage: 'xlsx_read_start', progress: 40, fileSize } as WorkerParseResponse);
+    
     const workbook = XLSX.read(arrayBuffer, {
       type: 'array',
       cellStyles: false,
@@ -67,46 +67,46 @@ self.onmessage = async (event: MessageEvent<WorkerParseRequest>) => {
       cellHTML: false,
       cellNF: false, 
       cellDates: false,
-      dense: false, // 프롬프트는 false를 제안 (메모리보다 속도 우선) - true가 밀집 데이터에 더 나을 수 있음.
+      dense: true, 
       bookVBA: false,
-      bookSheets: false, // 첫번째 시트만 읽음
+      // bookSheets: false, // 이 옵션 제거 또는 true로 설정해야 시트 내용 파싱 가능
       bookProps: false,
-      sheetStubs: false, // 빈 시트 스텁 생성 안함
-      raw: true // 원시 데이터 값만 (형식 변환 최소화)
+      sheetStubs: false,
+      raw: true 
     });
     console.log("🔧 [Worker] 6. XLSX.read 완료", performance.now());
     self.postMessage({ type: 'progress', stage: 'xlsx_read_done', progress: 60, fileSize } as WorkerParseResponse);
 
-    // bookSheets: false 일 경우, 첫 번째 시트 이름은 Object.keys(workbook.Sheets)[0] 로 접근
-    const sheetName = Object.keys(workbook.Sheets)[0];
-    if (!sheetName) {
+    const firstSheetName = workbook.SheetNames[0];
+    if (!firstSheetName) {
       response.error = "[Worker] No sheets found in the Excel file.";
       throw new Error(response.error);
     }
-    const worksheet = workbook.Sheets[sheetName];
+    const worksheet = workbook.Sheets[firstSheetName];
     if (!worksheet) {
-      response.error = "[Worker] Excel Sheet is empty or unreadable.";
+      response.error = "[Worker] First Excel Sheet is empty or unreadable.";
       throw new Error(response.error);
     }
 
     console.log("🔧 [Worker] 7. sheet_to_json (데이터 추출) 시작", performance.now());
     self.postMessage({ type: 'progress', stage: 'data_extraction_start', progress: 70, fileSize } as WorkerParseResponse);
     
-    // 전체 데이터 추출 (헤더 포함)
     const allDataWithHeader: string[][] = XLSX.utils.sheet_to_json<string[]>(worksheet, {
       header: 1,
       blankrows: false,
       defval: '', 
-      dense: true, // sheet_to_json 에서는 dense:true 가 일반적으로 더 안정적
+      dense: true, 
     });
     console.log("🔧 [Worker] 8. sheet_to_json (데이터 추출) 완료", performance.now());
     self.postMessage({ type: 'progress', stage: 'data_extraction_done', progress: 80, fileSize } as WorkerParseResponse);
 
-
     if (!allDataWithHeader || allDataWithHeader.length === 0) {
       response.error = "[Worker] The file is empty or contains no data rows (after sheet_to_json).";
-      response.previewData = [customColumnHeaders];
-      response.headersValid = false;
+      response.previewData = [customColumnHeaders]; // 헤더만 있는 미리보기
+      response.headersValid = false; // 헤더도 없다고 간주
+      response.fullData = [];
+      response.totalDataRows = 0;
+      response.dataExistsInSheet = false;
     } else {
       const headersFromSheet = allDataWithHeader[0]?.map(header => String(header || '').trim()) || [];
       
@@ -124,7 +124,7 @@ self.onmessage = async (event: MessageEvent<WorkerParseRequest>) => {
                 }
             }
             return newRow;
-        }).filter(row => row.some(cell => cell.trim() !== '')); // 실제 내용이 있는 행만 필터링
+        }).filter(row => row.some(cell => cell.trim() !== ''));
 
         response.totalDataRows = response.fullData.length;
         response.dataExistsInSheet = response.totalDataRows > 0;
@@ -134,14 +134,13 @@ self.onmessage = async (event: MessageEvent<WorkerParseRequest>) => {
         }
         
         response.previewData = [customColumnHeaders, ...(response.fullData || []).slice(0, PREVIEW_ROWS_LIMIT)];
-
       } else {
         response.headersValid = false;
-        const foundHeadersPreview = headersFromSheet.slice(0, EXPECTED_COLUMNS + 2).join(", "); // 조금 더 많이 보여주기
+        const foundHeadersPreview = headersFromSheet.slice(0, EXPECTED_COLUMNS + 2).join(", ");
         response.error = `[Worker] Invalid headers. Expected ${EXPECTED_COLUMNS} columns: "${customColumnHeaders.join(", ")}". Found ${headersFromSheet.length} columns, starting with: "${foundHeadersPreview}". Please use the provided template.`;
         
-        const previewWithOriginalHeader = allDataWithHeader.slice(0, PREVIEW_ROWS_LIMIT + 1);
-        response.previewData = previewWithOriginalHeader.map(row => {
+        const originalPreviewWithPossibleWrongHeader = allDataWithHeader.slice(0, PREVIEW_ROWS_LIMIT + 1);
+        response.previewData = originalPreviewWithPossibleWrongHeader.map(row => {
              const newRow = Array(Math.max(EXPECTED_COLUMNS, row.length)).fill('');
              row.forEach((cell, i) => newRow[i] = String(cell || ''));
              return newRow;
@@ -158,16 +157,15 @@ self.onmessage = async (event: MessageEvent<WorkerParseRequest>) => {
     console.error("🔧 [Worker] 에러 발생 (파싱 중):", e);
     response.error = response.error || `[Worker] Error parsing file: ${e.message || 'Unknown error during parsing'}`;
     response.success = false;
-    response.fullData = null; // 에러 시 fullData 초기화
+    response.fullData = null;
     response.dataExistsInSheet = false;
     response.totalDataRows = 0;
-     // 에러 발생 시에도 previewData는 유지하거나, 에러 상황에 맞는 기본값 설정 가능
-    if (!response.previewData && file) { // 아직 previewData가 없다면, 파일이 CSV인지 확인 후 기본 헤더 제공
-        response.previewData = [customColumnHeaders]; // 최소한의 헤더라도 보여주기
+    if (!response.previewData && file) { 
+        response.previewData = [customColumnHeaders]; 
     }
   } finally {
     response.processingTime = performance.now() - startTime;
     console.log("🔧 [Worker] 9. 파싱 최종 완료 및 결과 전송 직전", { timestamp: performance.now(), response });
-    self.postMessage({ ...response, type: 'result' } as WorkerParseResponse); // Ensure type is 'result'
+    self.postMessage({ ...response, type: 'result' } as WorkerParseResponse); 
   }
 };
