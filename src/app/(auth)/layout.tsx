@@ -26,6 +26,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     );
   }
 
+  // If already authenticated when this layout mounts, show a loading/redirecting message
+  // This prevents a flash of the login/register page before redirection by AppLayout or HomePage
   if (isAuthenticated) {
     return (
          <div className="flex h-screen w-screen items-center justify-center bg-background">
