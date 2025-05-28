@@ -7,7 +7,7 @@ import { PlusCircle, Search, Filter, Edit3, Eye, Copy, Trash2, Share2, FileText,
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import useLocalStorage from '@/hooks/useLocalStorage';
-import type { FormDefinition, SubmittedInquiry } from '@/types'; // SubmittedInquiry added
+import type { FormDefinition, SubmittedInquiry } from '@/types';
 import { useEffect, useState } from 'react';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
@@ -24,29 +24,30 @@ import {
 import { toast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { InquiryModal } from '@/components/modals/inquiry/InquiryModal';
-import { useAuth } from '@/contexts/AuthContext'; // Added for user ID
-import { firestore } from '@/lib/firebase'; // Added for Firestore
-import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore'; // Added Firestore functions
+import { useAuth } from '@/contexts/AuthContext';
+import { firestore } from '@/lib/firebase';
+import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useRouter } from 'next/navigation'; // Added for router push
 
 const FORMS_STORAGE_KEY = 'formflow_forms';
 
 export default function DashboardPage() {
-  const { user } = useAuth(); // Get current user
+  const { user } = useAuth();
   const [forms, setForms] = useLocalStorage<FormDefinition[]>(FORMS_STORAGE_KEY, []);
-  const [submittedInquiries, setSubmittedInquiries] = useState<SubmittedInquiry[]>([]); // State for inquiries
-  const [isLoadingInquiries, setIsLoadingInquiries] = useState(true); // Loading state for inquiries
+  const [submittedInquiries, setSubmittedInquiries] = useState<SubmittedInquiry[]>([]);
+  const [isLoadingInquiries, setIsLoadingInquiries] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [mounted, setMounted] = useState(false);
   const [isInquiryModalOpen, setIsInquiryModalOpen] = useState(false);
+  const router = useRouter(); // Initialize router
 
   useEffect(() => {
     setMounted(true); 
   }, []);
 
-  // Fetch submitted inquiries from Firestore
   useEffect(() => {
     if (user?.id) {
       setIsLoadingInquiries(true);
@@ -60,16 +61,14 @@ export default function DashboardPage() {
       const unsubscribe = onSnapshot(q, (querySnapshot) => {
         const fetchedInquiries = querySnapshot.docs.map(doc => {
           const data = doc.data();
-          // Ensure submittedAt is converted from Firestore Timestamp to ISO string
           let submittedAtStr = '';
           if (data.submittedAt instanceof Timestamp) {
             submittedAtStr = data.submittedAt.toDate().toISOString();
-          } else if (typeof data.submittedAt === 'string') { // Handle if it's already a string (e.g. from older data)
+          } else if (typeof data.submittedAt === 'string') {
             submittedAtStr = data.submittedAt;
-          } else if (data.submittedAt && typeof data.submittedAt.toDate === 'function') { // Handle other Timestamp-like objects
+          } else if (data.submittedAt && typeof data.submittedAt.toDate === 'function') {
              submittedAtStr = data.submittedAt.toDate().toISOString();
           }
-
 
           return {
             id: doc.id,
@@ -88,9 +87,9 @@ export default function DashboardPage() {
         setIsLoadingInquiries(false);
       });
 
-      return () => unsubscribe(); // Cleanup listener on unmount
+      return () => unsubscribe();
     } else {
-      setSubmittedInquiries([]); // Clear inquiries if no user
+      setSubmittedInquiries([]);
       setIsLoadingInquiries(false);
     }
   }, [user?.id]);
@@ -166,14 +165,12 @@ export default function DashboardPage() {
       <section>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">My Forms</h1>
+            <h1 className="text-3xl font-bold tracking-tight">My Forms (Legacy)</h1>
             <p className="text-muted-foreground">
-              Manage, edit, and view submissions for your forms.
+              Manage, edit, and view submissions for your legacy forms.
             </p>
           </div>
-          <Button onClick={() => router.push('/forms/create')}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Create New Form (Legacy)
-          </Button>
+          {/* Removed the legacy "Create New Form" button that used router.push */}
         </div>
 
         <div className="flex items-center gap-2 mb-6">
@@ -181,7 +178,7 @@ export default function DashboardPage() {
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               type="search"
-              placeholder="Search forms..."
+              placeholder="Search legacy forms..."
               className="pl-8 sm:w-full md:w-1/2 lg:w-1/3"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -195,17 +192,17 @@ export default function DashboardPage() {
         {filteredForms.length === 0 && !searchTerm ? (
           <div className="text-center py-10 border-2 border-dashed border-muted rounded-lg">
             <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-            <h3 className="mt-2 text-xl font-semibold">No Forms Created Yet</h3>
+            <h3 className="mt-2 text-xl font-semibold">No Legacy Forms Created Yet</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Get started by creating your first form.
+              Legacy forms are managed via local storage.
             </p>
              <Button variant="link" className="p-0 h-auto text-base mt-2" onClick={() => router.push('/forms/create')}>
-              Create a new form
+              Create a new legacy form
             </Button>
           </div>
         ) : filteredForms.length === 0 && searchTerm ? (
            <div className="text-center py-10">
-              <h3 className="text-xl font-semibold">No forms found</h3>
+              <h3 className="text-xl font-semibold">No legacy forms found</h3>
               <p className="text-muted-foreground">Try adjusting your search.</p>
             </div>
         ) : (
