@@ -1,3 +1,4 @@
+
 "use client"
 
 // Inspired by react-hot-toast library
@@ -142,13 +143,26 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">
 
-function toast({ ...props }: Toast) {
+function toast(options?: Toast) { // Made options parameter optional
+  if (!options) {
+    // If toast is called with undefined or no arguments, log a warning and do nothing (or return a dummy controller).
+    console.warn("toast() function was called without valid options. No toast will be displayed.");
+    const dummyId = genId();
+    return {
+      id: dummyId,
+      dismiss: () => dispatch({ type: "DISMISS_TOAST", toastId: dummyId }),
+      update: (props: ToasterToast) => { /* no-op */ },
+    };
+  }
+
+  // If options are provided, proceed with destructuring and creating the toast.
+  const { ...props } = options;
   const id = genId()
 
-  const update = (props: ToasterToast) =>
+  const update = (updateToastProps: ToasterToast) => // Renamed inner props to avoid conflict
     dispatch({
       type: "UPDATE_TOAST",
-      toast: { ...props, id },
+      toast: { ...updateToastProps, id },
     })
   const dismiss = () => dispatch({ type: "DISMISS_TOAST", toastId: id })
 
