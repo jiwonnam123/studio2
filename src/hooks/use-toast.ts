@@ -143,10 +143,10 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">
 
-function toast(options?: Toast) { // Made options parameter optional
-  if (!options) {
-    // If toast is called with undefined or no arguments, log a warning and do nothing (or return a dummy controller).
-    console.warn("toast() function was called without valid options. No toast will be displayed.");
+function toast(options?: Toast) {
+  // Robust check for options
+  if (!options || typeof options !== 'object' || options === null) {
+    console.warn("toast() function was called without valid options. No toast will be displayed. Options received:", options);
     const dummyId = genId();
     return {
       id: dummyId,
@@ -155,11 +155,10 @@ function toast(options?: Toast) { // Made options parameter optional
     };
   }
 
-  // If options are provided, proceed with destructuring and creating the toast.
-  const { ...props } = options;
+  const { ...props } = options; // Now this should be safe
   const id = genId()
 
-  const update = (updateToastProps: ToasterToast) => // Renamed inner props to avoid conflict
+  const update = (updateToastProps: ToasterToast) =>
     dispatch({
       type: "UPDATE_TOAST",
       toast: { ...updateToastProps, id },
