@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState, useMemo } from 'react'; // Added React import
+import React, { useEffect, useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Eye, Trash2, ListChecks, MoreHorizontal, Edit, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -71,23 +71,20 @@ export default function DashboardPage() {
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       console.log(`[Dashboard] onSnapshot triggered. Found ${querySnapshot.docs.length} documents.`);
-      const fetchedInquiries = querySnapshot.docs.map(docSnapshot => { // Renamed doc to docSnapshot to avoid conflict
+      const fetchedInquiries = querySnapshot.docs.map(docSnapshot => {
         const data = docSnapshot.data();
         let submittedAtStr = '';
         if (data.submittedAt instanceof Timestamp) {
           submittedAtStr = data.submittedAt.toDate().toISOString();
         } else if (typeof data.submittedAt === 'string') {
-          // This case should ideally not happen if submittedAt is always a serverTimestamp
-          // but handle it defensively.
           submittedAtStr = data.submittedAt;
         } else if (data.submittedAt && typeof data.submittedAt.toDate === 'function') {
            submittedAtStr = data.submittedAt.toDate().toISOString();
         } else {
             console.warn(`[Dashboard] Document ${docSnapshot.id} has invalid submittedAt:`, data.submittedAt);
-            submittedAtStr = new Date(0).toISOString(); // Fallback for invalid date
+            submittedAtStr = new Date(0).toISOString(); 
         }
 
-        // Ensure data array and its items have status
         const processedDataArray = (Array.isArray(data.data) ? data.data : []).map((item: Partial<SubmittedInquiryDataRow>) => ({
             campaignKey: item.campaignKey || '',
             campaignName: item.campaignName || '',
@@ -95,12 +92,12 @@ export default function DashboardPage() {
             userName: item.userName || '',
             contact: item.contact || '',
             remarks: item.remarks || '',
-            status: item.status || "Pending", // Default to Pending if status is missing
+            status: item.status || "Pending", 
             adminNotes: item.adminNotes || '',
         }));
 
         return {
-          id: docSnapshot.id, // Use docSnapshot.id here
+          id: docSnapshot.id, 
           userId: data.userId,
           source: data.source,
           fileName: data.fileName,
@@ -120,7 +117,7 @@ export default function DashboardPage() {
       console.log("[Dashboard] Unsubscribing from inquiries snapshot listener.");
       unsubscribe();
     };
-  }, [user?.id, isAdmin, toast]); // Added toast to dependency array as it's used in error callback
+  }, [user?.id, isAdmin, toast]); 
 
   const handleStatusChange = async (inquiryId: string, dataRowIndex: number, newStatus: string) => {
     if (!isAdmin) {
@@ -192,7 +189,7 @@ export default function DashboardPage() {
          icon = <XCircle className="mr-1 h-3 w-3 text-red-500" />;
         break;
       default:
-        variant = "secondary"; // Default for unknown statuses
+        variant = "secondary"; 
         icon = <ListChecks className="mr-1 h-3 w-3 text-muted-foreground" />
     }
     return <Badge variant={variant} className="capitalize text-xs py-0.5 px-1.5 flex items-center w-fit">{icon} {status}</Badge>;
@@ -250,7 +247,7 @@ export default function DashboardPage() {
                 <TableRow>
                   <TableHead>Submitted Date</TableHead>
                   {isAdmin && <TableHead>User ID</TableHead>}
-                  <TableHead>Source</TableHead>
+                  {isAdmin && <TableHead>Source</TableHead>}
                   <TableHead>File Name / Details</TableHead>
                   <TableHead>Entries</TableHead>
                   <TableHead>Actions</TableHead>
@@ -264,11 +261,13 @@ export default function DashboardPage() {
                         {inquiry.submittedAt ? format(new Date(inquiry.submittedAt), "yyyy-MM-dd HH:mm") : 'N/A'}
                       </TableCell>
                       {isAdmin && <TableCell className="text-xs truncate max-w-[100px]">{inquiry.userId}</TableCell>}
-                      <TableCell>
-                        <Badge variant={inquiry.source === 'excel' ? 'secondary' : 'outline'} className="capitalize">
-                          {inquiry.source}
-                        </Badge>
-                      </TableCell>
+                      {isAdmin && (
+                        <TableCell>
+                          <Badge variant={inquiry.source === 'excel' ? 'secondary' : 'outline'} className="capitalize">
+                            {inquiry.source}
+                          </Badge>
+                        </TableCell>
+                      )}
                       <TableCell className="max-w-[150px] truncate">
                           {inquiry.source === 'excel' && inquiry.fileName ? inquiry.fileName :
                            inquiry.source === 'direct' ? 'Manual Input' : 'N/A'}
@@ -365,3 +364,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
