@@ -1,15 +1,12 @@
 
 "use client";
 
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Search, Filter, Edit3, Eye, Copy, Trash2, Share2, FileText, ListChecks, MoreHorizontal } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import useLocalStorage from '@/hooks/useLocalStorage';
-import type { FormDefinition, SubmittedInquiry } from '@/types';
+import { PlusCircle, Search, Eye, Trash2, ListChecks, MoreHorizontal } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import type { SubmittedInquiry } from '@/types';
 import { useEffect, useState } from 'react';
-import { format, formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +16,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { toast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
@@ -31,14 +27,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCap
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const FORMS_STORAGE_KEY = 'formflow_forms';
-
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [forms, setForms] = useLocalStorage<FormDefinition[]>(FORMS_STORAGE_KEY, []);
   const [submittedInquiries, setSubmittedInquiries] = useState<SubmittedInquiry[]>([]);
   const [isLoadingInquiries, setIsLoadingInquiries] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
   const [mounted, setMounted] = useState(false);
   const [isInquiryModalOpen, setIsInquiryModalOpen] = useState(false);
 
@@ -92,62 +84,12 @@ export default function DashboardPage() {
     }
   }, [user?.id]);
 
-  const handleDeleteForm = (formId: string) => {
-    setForms(prevForms => prevForms.filter(form => form.id !== formId));
-    toast({
-      title: "Form Deleted",
-      description: "The form has been successfully deleted.",
-    });
-  };
-  
-  const handleDuplicateForm = (formToDuplicate: FormDefinition) => {
-    const newForm: FormDefinition = {
-      ...formToDuplicate,
-      id: crypto.randomUUID(),
-      title: `${formToDuplicate.title} (Copy)`,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setForms(prevForms => [...prevForms, newForm]);
-    toast({
-      title: "Form Duplicated",
-      description: `Form "${newForm.title}" has been created.`,
-    });
-  };
-
-  const filteredForms = forms.filter(form =>
-    form.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    form.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  ).sort((a,b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-
   if (!mounted) {
     return (
        <div className="space-y-8 p-4 md:p-6">
         <div className="flex items-center justify-between">
           <Skeleton className="h-10 w-1/3 rounded" />
            <Skeleton className="h-10 w-36 rounded" /> 
-        </div>
-         <div className="animate-pulse space-y-2">
-            <Skeleton className="h-8 w-1/4 rounded" />
-            <Skeleton className="h-4 w-1/2 rounded" />
-          </div>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {[1,2,3].map(i => (
-            <Card key={i} className="animate-pulse">
-              <CardHeader>
-                <Skeleton className="h-6 w-3/4 rounded bg-muted" />
-                <Skeleton className="h-4 w-1/2 rounded bg-muted mt-1" />
-              </CardHeader>
-              <CardContent>
-                <Skeleton className="h-4 w-full rounded bg-muted" />
-                <Skeleton className="h-4 w-2/3 rounded bg-muted mt-1" />
-              </CardContent>
-              <CardFooter className="flex justify-between">
-                 <Skeleton className="h-8 w-20 rounded bg-muted" />
-                 <Skeleton className="h-8 w-20 rounded bg-muted" />
-              </CardFooter>
-            </Card>
-          ))}
         </div>
         <div className="animate-pulse space-y-2 mt-8">
             <Skeleton className="h-8 w-1/3 rounded" />
@@ -160,13 +102,13 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8 p-4 md:p-6">
-      {/* My Forms Section */}
+      {/* My Submitted Inquiries Section */}
       <section>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">My Forms (Legacy)</h1>
+            <h1 className="text-3xl font-bold tracking-tight">My Submitted Inquiries</h1>
             <p className="text-muted-foreground">
-              Manage, edit, and view submissions for your legacy forms.
+              View and manage your submitted inquiry data.
             </p>
           </div>
           <Button onClick={() => setIsInquiryModalOpen(true)}>
@@ -174,106 +116,12 @@ export default function DashboardPage() {
           </Button>
         </div>
 
-        <div className="flex items-center gap-2 mb-6">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search legacy forms..."
-              className="pl-8 sm:w-full md:w-1/2 lg:w-1/3"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          <Button variant="outline" disabled>
-            <Filter className="mr-2 h-4 w-4" /> Filter
-          </Button>
-        </div>
-
-        {filteredForms.length === 0 && !searchTerm ? (
-          <div className="text-center py-10 border-2 border-dashed border-muted rounded-lg">
-            <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
-            <h3 className="mt-2 text-xl font-semibold">No Legacy Forms Created Yet</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Legacy forms are managed via local storage. Use the "Submit New Inquiry" button above to get started with the new system.
-            </p>
-          </div>
-        ) : filteredForms.length === 0 && searchTerm ? (
-           <div className="text-center py-10">
-              <h3 className="text-xl font-semibold">No legacy forms found</h3>
-              <p className="text-muted-foreground">Try adjusting your search.</p>
-            </div>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filteredForms.map(form => (
-              <Card key={form.id} className="flex flex-col shadow-lg hover:shadow-xl transition-shadow duration-300">
-                <CardHeader>
-                  <CardTitle className="truncate text-xl">{form.title}</CardTitle>
-                  <CardDescription className="h-10 overflow-hidden text-ellipsis">
-                    {form.description || 'No description available.'}
-                  </CardDescription>
-                  <Badge variant="outline" className="w-fit">{form.fields.length} field{form.fields.length === 1 ? '' : 's'}</Badge>
-                </CardHeader>
-                <CardContent className="flex-grow">
-                  <p className="text-sm text-muted-foreground">
-                    Last updated: {formatDistanceToNow(new Date(form.updatedAt), { addSuffix: true })}
-                  </p>
-                </CardContent>
-                <CardFooter className="flex flex-wrap gap-2 justify-start">
-                  <Link href={`/forms/${form.id}/edit`}>
-                    <Button variant="outline" size="sm"><Edit3 className="mr-1 h-3 w-3" /> Edit</Button>
-                  </Link>
-                  <Link href={`/forms/${form.id}/preview`}>
-                    <Button variant="outline" size="sm"><Eye className="mr-1 h-3 w-3" /> Preview</Button>
-                  </Link>
-                  <Button variant="outline" size="sm" onClick={() => handleDuplicateForm(form)}>
-                    <Copy className="mr-1 h-3 w-3" /> Duplicate
-                  </Button>
-                  <Link href={`/forms/${form.id}/submit`}>
-                    <Button variant="default" size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90">
-                      <Share2 className="mr-1 h-3 w-3" /> Submit / Share
-                    </Button>
-                  </Link>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="sm"><Trash2 className="mr-1 h-3 w-3" /> Delete</Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This action cannot be undone. This will permanently delete the form
-                          &quot;{form.title}&quot; and all its associated data.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDeleteForm(form.id)}>
-                          Delete
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* My Submitted Inquiries Section */}
-      <section className="mt-12">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">My Submitted Inquiries</h2>
-            <p className="text-muted-foreground">
-              View and manage your submitted inquiry data.
-            </p>
-          </div>
-        </div>
-
         {isLoadingInquiries ? (
           <Card>
+             <CardHeader>
+                <Skeleton className="h-8 w-1/2"/>
+                <Skeleton className="h-4 w-3/4 mt-1"/>
+            </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-4">
                 <Skeleton className="h-10 w-full rounded" />
@@ -284,11 +132,15 @@ export default function DashboardPage() {
           </Card>
         ) : submittedInquiries.length === 0 ? (
           <Card>
+            <CardHeader>
+                <CardTitle>No Inquiries Submitted Yet</CardTitle>
+                <CardDescription>Click "Submit New Inquiry" to get started.</CardDescription>
+            </CardHeader>
             <CardContent className="text-center py-10">
               <ListChecks className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-2 text-xl font-semibold">No Inquiries Submitted Yet</h3>
+              <h3 className="mt-2 text-xl font-semibold">No data to display</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Use the "Submit New Inquiry" button in the "My Forms (Legacy)" section above to submit your first inquiry.
+                You haven't submitted any inquiries yet.
               </p>
             </CardContent>
           </Card>
@@ -320,7 +172,7 @@ export default function DashboardPage() {
                         {inquiry.source === 'excel' && inquiry.fileName ? inquiry.fileName : 
                          inquiry.source === 'direct' ? 'Manual Input' : 'N/A'}
                     </TableCell>
-                    <TableCell className="text-right">{inquiry.data.length}</TableCell>
+                    <TableCell className="text-right">{Array.isArray(inquiry.data) ? inquiry.data.length : 0}</TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -351,4 +203,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
