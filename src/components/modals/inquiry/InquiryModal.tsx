@@ -35,25 +35,32 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
   const handleFileChange = useCallback((file: UploadedFile | null) => {
     setUploadedFile(file);
     if (!file || file.status !== 'success') {
+      // Clear previous validation state if file is removed or upload wasn't successful
       if (excelValidationState !== null) { 
          setExcelValidationState(null); 
       }
     }
-  }, [excelValidationState]);
+  }, [excelValidationState]); // excelValidationState is a dependency for the clearing logic
 
   const handleExcelValidationComplete = useCallback((result: ExcelValidationResult) => {
-    setExcelValidationState(prevState => {
-      // Avoid unnecessary re-renders if the result is the same
-      if (JSON.stringify(prevState) === JSON.stringify(result)) {
-        return prevState;
-      }
-      return result;
-    });
-  }, []);
+    // Avoid unnecessary re-renders if the result is the same
+    if (JSON.stringify(excelValidationState) === JSON.stringify(result)) {
+      return;
+    }
+    setExcelValidationState(result);
+
+    if (result.error === null && result.hasData && result.totalDataRows && result.totalDataRows > 0) {
+      toast({
+        title: "File Valid & Ready",
+        description: `The uploaded Excel file is valid and contains ${result.totalDataRows} data row(s). Preview below. All rows will be processed upon submission.`,
+      });
+    }
+  }, [excelValidationState]);
+
 
   const handleSubmitInquiry = async () => {
     setIsSubmitting(true);
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API call
 
     if (activeTab === 'excel') {
       if (uploadedFile && uploadedFile.status === 'success' && excelValidationState && excelValidationState.error === null && excelValidationState.hasData) {
@@ -80,7 +87,9 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
         return;
       }
     } else if (activeTab === 'direct') {
+      // TODO: Implement direct entry submission logic
       console.log('Submitting direct entry form...');
+      // Placeholder for actual submission logic, e.g., get gridData from DirectEntryTab if needed
       toast({
         title: "Inquiry Submitted (Direct)",
         description: "Your direct entry inquiry has been submitted.",
@@ -90,11 +99,12 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
     setIsSubmitting(false);
     setUploadedFile(null);
     setExcelValidationState(null);
-    onOpenChange(false);
+    onOpenChange(false); // Close modal on successful submission
   };
 
   const handleModalOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
+       // Clear states when modal is closed
        setUploadedFile(null);
        setExcelValidationState(null);
        // setActiveTab('excel'); // Optionally reset tab to default
@@ -102,6 +112,7 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
     onOpenChange(isOpen);
   };
   
+  // Effect to clear states if 'open' prop changes to false externally
   useEffect(() => {
     if (!open) {
       setUploadedFile(null);
@@ -120,9 +131,10 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
   };
 
   const isDirectEntrySubmitDisabled = () => {
+    // TODO: Implement actual validation for direct entry if needed
     if (isSubmitting) return true;
-    // Add actual validation for direct entry if needed
-    return false;
+    // Example: return gridData.length === 0;
+    return false; // For now, always enabled if not submitting
   };
 
 

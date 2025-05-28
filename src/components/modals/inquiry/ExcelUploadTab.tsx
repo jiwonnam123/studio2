@@ -27,7 +27,7 @@ interface ExcelUploadTabProps {
 }
 
 const formatBytes = (bytes: number, decimals = 2) => {
-  if (bytes === 0) return '0 Bytes';
+  if (!bytes || bytes === 0) return '0 Bytes';
   const k = 1024;
   const dm = decimals < 0 ? 0 : decimals;
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
@@ -43,7 +43,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
 
   const handleDownloadTemplate = () => {
     const link = document.createElement('a');
-    link.href = '/inquiry_template.xlsx';
+    link.href = '/inquiry_template.xlsx'; // Assuming template is in public folder
     link.setAttribute('download', 'inquiry_template.xlsx');
     document.body.appendChild(link);
     link.click();
@@ -58,11 +58,10 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
       setPreviewData(null);
       setTotalDataRowsAfterParse(0);
 
-      // Terminate any existing worker before starting a new one
       if (workerRef.current) {
         workerRef.current.terminate();
       }
-
+      
       try {
         currentWorker = new Worker(new URL('@/workers/excelParser.worker.ts', import.meta.url), {
           type: 'module',
@@ -72,23 +71,20 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
         currentWorker.postMessage({ file: uploadedFileState.file });
 
         currentWorker.onmessage = (event: MessageEvent<WorkerParseResponse>) => {
-          // Ensure message is from the current worker instance
-          if (workerRef.current !== currentWorker) {
+           if (workerRef.current !== currentWorker) {
             console.warn("Received message from stale worker.");
             return;
           }
-          
           const { error, previewData: pData, totalDataRows: tRows, headersValid, dataExistsInSheet } = event.data;
           setPreviewData(pData);
           setTotalDataRowsAfterParse(tRows || 0);
           onValidationComplete({
             error,
-            hasData: headersValid && dataExistsInSheet,
+            hasData: headersValid && dataExistsInSheet, // Only set hasData true if headers are valid AND data exists
             totalDataRows: tRows || 0,
           });
-          setIsParsing(false); // CRITICAL: Ensure this is called
-
-          if (workerRef.current === currentWorker) { // Clean up if this is the current worker
+          setIsParsing(false);
+           if (workerRef.current === currentWorker) {
             workerRef.current.terminate();
             workerRef.current = null;
           }
@@ -96,7 +92,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
 
         currentWorker.onerror = (err) => {
           if (workerRef.current !== currentWorker) {
-             console.warn("Received error from stale worker.");
+            console.warn("Received error from stale worker during onerror.");
             return;
           }
           console.error("Excel parsing worker error:", err);
@@ -108,76 +104,66 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
             hasData: false,
             totalDataRows: 0,
           });
-          setIsParsing(false); // CRITICAL: Ensure this is called
-
-          if (workerRef.current === currentWorker) { // Clean up if this is the current worker
+          setIsParsing(false);
+           if (workerRef.current === currentWorker) {
             workerRef.current.terminate();
             workerRef.current = null;
           }
         };
       } catch (e) {
-        console.error("Error instantiating or posting to worker:", e);
+         console.error("Error instantiating or posting to worker:", e);
         const errorMessage = e instanceof Error ? e.message : 'Unknown error with worker setup.';
         onValidationComplete({ error: `Worker setup failed: ${errorMessage}`, hasData: false, totalDataRows: 0 });
-        setIsParsing(false); // CRITICAL: Ensure this is called in case of setup failure
-        if (currentWorker) { // Terminate if instance was created
+        setIsParsing(false);
+        if (currentWorker) {
             currentWorker.terminate();
         }
-        if (workerRef.current === currentWorker) { // Clear ref if it was set
+        if (workerRef.current === currentWorker) {
             workerRef.current = null;
         }
       }
+
     } else {
-      // Handles cases: no file, file removed, or initial error from FileUploadZone.
+      // Reset local states if file is removed or initially not 'success'
       setPreviewData(null);
       setTotalDataRowsAfterParse(0);
-      setIsParsing(false); // Ensure parsing is off
+      
+      // Only set parsing to false if it was true.
+      // Avoids issues if this useEffect runs due to other prop changes when no file is active.
+      if (isParsing) {
+        setIsParsing(false);
+      }
 
-      if (workerRef.current) { // Terminate any active worker
+      if (workerRef.current) {
         workerRef.current.terminate();
         workerRef.current = null;
       }
-
-      // Reset parent's validation state if file is gone or had an initial error.
-      // Avoid reset if status is 'uploading' (intermediate state).
+      
+      // Reset parent's validation state ONLY if file is truly gone or had an initial error.
+      // Avoid resetting if status is 'uploading' (intermediate state handled by FileUploadZone).
       if (!uploadedFileState || uploadedFileState.status === 'error' || uploadedFileState.status === 'idle') {
-        onValidationComplete({
-          error: uploadedFileState?.status === 'error' ? uploadedFileState.errorMessage : null,
-          hasData: false,
-          totalDataRows: 0
-        });
+         // onValidationComplete({ error: uploadedFileState?.status === 'error' ? uploadedFileState.errorMessage : null, hasData: false, totalDataRows: 0 });
       }
     }
-
-    // Cleanup function for the useEffect hook
     return () => {
       if (currentWorker) {
-        // console.log("Terminating worker from useEffect cleanup:", currentWorker);
         currentWorker.terminate();
-        if (workerRef.current === currentWorker) {
+         if (workerRef.current === currentWorker) {
           workerRef.current = null;
         }
       }
     };
-  }, [uploadedFileState, onValidationComplete]);
+  }, [uploadedFileState, onValidationComplete, isParsing]);
 
 
   const handleRemoveFile = () => {
     onFileChange(null); 
   };
   
+  // Display error from FileUploadZone (e.g., wrong type, too large) OR from parsing/validation by worker
   const fileUploadZoneError = uploadedFileState?.status === 'error' ? uploadedFileState.errorMessage : null;
-  // Use excelValidationState for displaying parsing/validation errors from the worker
   const parsingOrValidationSystemError = excelValidationState?.error; 
-  
-  // Display parsing/validation system error if it exists, otherwise display file upload zone error
   const finalErrorToDisplay = parsingOrValidationSystemError ?? fileUploadZoneError;
-
-  const isFileValidAndHasDataForSubmission = 
-    uploadedFileState?.status === 'success' && 
-    excelValidationState && 
-    excelValidationState.error === null && 
-    excelValidationState.hasData;
 
   const hasPreviewableData = previewData && previewData.length > 0 && !isParsing;
 
@@ -192,7 +178,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
 
   return (
     <div className="space-y-6 py-2">
-      {(!uploadedFileState || uploadedFileState.status !== 'success') && !isParsing ? (
+      {(!uploadedFileState || uploadedFileState.status === 'idle' || uploadedFileState.status === 'error') && !isParsing ? (
         <>
           <div className="flex justify-end items-center">
             <Button variant="outline" onClick={handleDownloadTemplate} className="w-full sm:w-auto">
@@ -201,7 +187,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
             </Button>
           </div>
           <FileUploadZone onFileAccepted={onFileChange} />
-          {fileUploadZoneError && ( // Error from FileUploadZone (e.g. wrong type, too large)
+          {fileUploadZoneError && ( 
              <Card className="border-destructive bg-destructive/10 mt-4">
                 <CardHeader>
                     <CardTitle className="flex items-center text-destructive text-base">
@@ -215,7 +201,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
             </Card>
           )}
         </>
-      ) : uploadedFileState && uploadedFileState.status === 'success' && !isParsing ? ( 
+      ) : uploadedFileState && (uploadedFileState.status === 'success' || uploadedFileState.status === 'uploading') && !isParsing ? ( 
         <div className="space-y-4">
             <div className="p-4 border rounded-lg bg-muted/30">
               <div className="flex items-center justify-between">
@@ -231,7 +217,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
-                  {isFileValidAndHasDataForSubmission && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+                  {excelValidationState?.error === null && excelValidationState?.hasData && <CheckCircle2 className="w-5 h-5 text-green-500" />}
                   {excelValidationState?.error && <AlertTriangle className="w-5 h-5 text-destructive" />}
                   {!excelValidationState?.error && excelValidationState && !excelValidationState.hasData && <AlertTriangle className="w-5 h-5 text-orange-500" />}
                   <Button variant="ghost" size="icon" onClick={handleRemoveFile}>
@@ -251,20 +237,6 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
                 </CardHeader>
                 <CardContent>
                     <p className="text-destructive">{excelValidationState.error}</p>
-                </CardContent>
-                </Card>
-            )}
-
-            {isFileValidAndHasDataForSubmission && (
-                <Card className="border-green-500 bg-green-500/10">
-                <CardHeader>
-                    <CardTitle className="flex items-center text-green-600 text-lg">
-                    <CheckCircle2 className="mr-2 h-5 w-5" />
-                    File Valid & Ready
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-green-700">The uploaded Excel file is valid and contains {excelValidationState?.totalDataRows} data row(s). Preview below. All rows will be processed upon submission.</p>
                 </CardContent>
                 </Card>
             )}
@@ -291,10 +263,11 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
                     <Table className="min-w-full text-sm">
                         <TableHeader className="bg-muted/50 sticky top-0 z-10">
                         <TableRow>
-                            {previewData[0]?.map((header, index) => ( // Added optional chaining for previewData[0]
+                            {previewData[0]?.map((header, index) => ( 
                             <TableHead key={`header-${index}`} className={cn(
-                                "px-3 py-2 whitespace-nowrap font-semibold",
-                                excelValidationState?.error && header?.trim() !== (excelValidationState?.error?.includes("Expected:") ? excelValidationState.error.split("Expected: \"")[1]?.split("\"")[0]?.split(", ")[index] : "INVALID_HEADER_CHECK")  && "bg-destructive/30 text-destructive-foreground"
+                                "px-3 py-2 whitespace-nowrap font-semibold"
+                                // Example of conditional header styling based on validation error content:
+                                // excelValidationState?.error && header?.trim() !== (excelValidationState?.error?.includes("Expected:") ? excelValidationState.error.split("Expected: \"")[1]?.split("\"")[0]?.split(", ")[index] : "INVALID_HEADER_CHECK")  && "bg-destructive/30 text-destructive-foreground"
                             )}>
                                 {header || `Column ${index + 1}`}
                             </TableHead>
@@ -309,7 +282,6 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
                                 {String(cell)}
                                 </TableCell>
                             ))}
-                            {/* Fill empty cells if row is shorter than header */}
                             {previewData[0] && Array.from({ length: Math.max(0, previewData[0].length - row.length) }).map((_, emptyCellIndex) => (
                                 <TableCell key={`empty-${rowIndex}-${emptyCellIndex}`} className="px-3 py-1.5 whitespace-nowrap truncate max-w-[200px]"></TableCell>
                             ))}
@@ -331,7 +303,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
         </div>
       ) : null } 
       
-      {!isParsing && !uploadedFileState && !hasPreviewableData && !fileUploadZoneError && (
+      {!isParsing && !uploadedFileState && !hasPreviewableData && !finalErrorToDisplay && (
          <div className="flex flex-col items-center justify-center p-4 text-muted-foreground border-2 border-dashed rounded-lg min-h-[100px]">
             <FileText className="w-8 h-8 mb-2"/>
             <p>Upload an Excel file to see a preview.</p>
