@@ -3,27 +3,17 @@
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Eye, Trash2, ListChecks, MoreHorizontal, Edit, CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight, FileEdit, ExternalLink, Search } from 'lucide-react';
+import { PlusCircle, ListChecks, MoreHorizontal, Edit, CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { SubmittedInquiry, SubmittedInquiryDataRow } from '@/types';
 import { format } from 'date-fns';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { InquiryModal } from '@/components/modals/inquiry/InquiryModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { firestore } from '@/lib/firebase';
-import { collection, query, where, orderBy, onSnapshot, Timestamp, doc, updateDoc, writeBatch, getDoc } from 'firebase/firestore';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from '@/components/ui/table';
+import { collection, query, where, orderBy, onSnapshot, Timestamp, doc, updateDoc, writeBatch, getDoc, DocumentData } from 'firebase/firestore';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -52,11 +42,9 @@ export default function DashboardPage() {
   const [isInquiryModalOpen, setIsInquiryModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // For bulk status update
   const [selectedRows, setSelectedRows] = useState<Map<string, FlattenedDataRow>>(new Map());
   const [bulkStatus, setBulkStatus] = useState<string>('');
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
-
 
   const isAdmin = useMemo(() => user?.email === ADMIN_EMAIL, [user?.email]);
 
@@ -90,7 +78,7 @@ export default function DashboardPage() {
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       console.log(`[Dashboard] onSnapshot triggered. Found ${querySnapshot.docs.length} documents.`);
       const fetchedInquiries = querySnapshot.docs.map(docSnapshot => {
-        const data = docSnapshot.data();
+        const data = docSnapshot.data() as DocumentData;
         let submittedAtStr = '';
         if (data.submittedAt instanceof Timestamp) {
           submittedAtStr = data.submittedAt.toDate().toISOString();
@@ -143,7 +131,7 @@ export default function DashboardPage() {
     return submittedInquiries.flatMap((inquiry) =>
       (Array.isArray(inquiry.data) ? inquiry.data : []).map((dataRow, dataRowIndex) => ({
         ...dataRow,
-        key: `${inquiry.id}-row-${dataRowIndex}`, // Unique key for React list
+        key: `${inquiry.id}-row-${dataRowIndex}`,
         originalInquiryId: inquiry.id,
         originalInquirySubmittedAt: inquiry.submittedAt,
         originalInquiryUserId: inquiry.userId,
@@ -179,7 +167,6 @@ export default function DashboardPage() {
     }
     try {
         const inquiryRef = doc(firestore, "inquiries", inquiryId);
-        // Fetch the latest document data to avoid overwriting concurrent changes
         const docSnap = await getDoc(inquiryRef);
         if (!docSnap.exists()) {
             toast({ title: "Error", description: "Inquiry not found in database.", variant: "destructive" });
@@ -247,15 +234,14 @@ export default function DashboardPage() {
     const batch = writeBatch(firestore);
     const updatesByInquiryId = new Map<string, { inquiryRef: any, updatedDataArray: SubmittedInquiryDataRow[] }>();
 
-    // Group updates by original inquiry ID
     for (const row of selectedRows.values()) {
       if (!updatesByInquiryId.has(row.originalInquiryId)) {
         const inquiryRef = doc(firestore, "inquiries", row.originalInquiryId);
-        const docSnap = await getDoc(inquiryRef); // Get current data
+        const docSnap = await getDoc(inquiryRef); 
         if (docSnap.exists()) {
            updatesByInquiryId.set(row.originalInquiryId, {
             inquiryRef,
-            updatedDataArray: [...(docSnap.data()?.data as SubmittedInquiryDataRow[] || [])] // Start with current data
+            updatedDataArray: [...(docSnap.data()?.data as SubmittedInquiryDataRow[] || [])] 
           });
         } else {
           console.warn(`Document ${row.originalInquiryId} not found for bulk update of row ${row.key}`);
@@ -269,7 +255,6 @@ export default function DashboardPage() {
       }
     }
     
-    // Add all updates to the batch
     updatesByInquiryId.forEach(({ inquiryRef, updatedDataArray }) => {
       batch.update(inquiryRef, { data: updatedDataArray });
     });
@@ -277,8 +262,8 @@ export default function DashboardPage() {
     try {
       await batch.commit();
       toast({ title: "Bulk Status Update Successful", description: `${selectedRows.size} items updated to ${bulkStatus}.` });
-      setSelectedRows(new Map()); // Clear selection
-      setBulkStatus(''); // Reset dropdown
+      setSelectedRows(new Map()); 
+      setBulkStatus(''); 
     } catch (error) {
       console.error("Error in bulk status update:", error);
       toast({ title: "Bulk Update Failed", description: "Could not update all selected items.", variant: "destructive" });
@@ -286,7 +271,6 @@ export default function DashboardPage() {
       setIsBulkUpdating(false);
     }
   };
-
 
   const handleNextPage = () => {
     setCurrentPage((prev) => Math.min(prev + 1, totalPages || 1));
@@ -345,10 +329,8 @@ export default function DashboardPage() {
     return <Badge variant={variant} className="capitalize text-xs py-0.5 px-1.5 flex items-center w-fit">{icon} {status || 'N/A'}</Badge>;
   };
 
-
   const isAllOnPageSelected = paginatedDataRows.length > 0 && paginatedDataRows.every(row => selectedRows.has(row.key));
   const isSomeOnPageSelected = paginatedDataRows.some(row => selectedRows.has(row.key)) && !isAllOnPageSelected;
-
 
   return (
     <div className="space-y-8 p-4 md:p-6">
@@ -357,7 +339,7 @@ export default function DashboardPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">My Submitted Inquiries</h1>
             <p className="text-muted-foreground">
-              View and manage your submitted inquiry data. {isAdmin && <Badge variant="secondary" className="ml-2">Admin View</Badge>}
+              View and manage your submitted inquiry data.{isAdmin ? <Badge variant="secondary" className="ml-2">Admin View</Badge> : null}
             </p>
           </div>
           <Button onClick={() => setIsInquiryModalOpen(true)}>
@@ -365,7 +347,7 @@ export default function DashboardPage() {
           </Button>
         </div>
 
-        {isAdmin && (
+        {isAdmin ? (
           <Card className="mb-6 shadow-sm border-dashed bg-muted/30">
             <CardHeader className="pb-3 pt-4">
               <CardTitle className="text-base">Bulk Status Update</CardTitle>
@@ -390,13 +372,12 @@ export default function DashboardPage() {
                 size="sm"
                 className="w-full sm:w-auto"
               >
-                {isBulkUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {isBulkUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Save Status for ({selectedRows.size}) Items
               </Button>
             </CardContent>
           </Card>
-        )}
-
+        ) : null}
 
         {isLoadingInquiries ? (
           <Card>
@@ -431,56 +412,28 @@ export default function DashboardPage() {
             <Card className="shadow-lg">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    {isAdmin && (
-                      <TableHead className="w-[30px] px-2 py-2 text-center"> {/* 여백 줄임 */}
-                        <Checkbox 
-                          checked={isAllOnPageSelected || (isSomeOnPageSelected ? "indeterminate" : false)}
-                          onCheckedChange={handleSelectAllOnPage}
-                          aria-label="Select all items on this page"
-                        />
-                      </TableHead>
-                    )}
-                    <TableHead className="w-[100px]">Submitted Date</TableHead> {/* 너비 고정 */}
-                    <TableHead className="min-w-[120px]">Campaign Key</TableHead> {/* 최소 너비 */}
-                    <TableHead className="min-w-[150px] max-w-[200px]">Campaign Name</TableHead> {/* 최소/최대 너비 */}
-                    <TableHead className="min-w-[120px]">ADID/IDFA</TableHead> {/* 최소 너비 */}
-                    <TableHead className="w-[100px]">User Name</TableHead> {/* 너비 고정 */}
-                    <TableHead className="w-[120px]">Contact</TableHead> {/* 너비 고정 */}
-                    <TableHead className="flex-1 min-w-[150px]">Remarks</TableHead> {/* 유동적, 최소 너비 */}
-                    <TableHead className="w-[120px] text-center">Status</TableHead> {/* 너비 고정, 중앙 정렬 */}
-                    {isAdmin && <TableHead className="w-[50px] text-center">Edit</TableHead>} {/* 너비 고정, 중앙 정렬 */}
-                  </TableRow>
+                  <TableRow>{
+                    isAdmin ? (<TableHead className="w-[30px] px-1 py-2 text-center"><Checkbox checked={isAllOnPageSelected || (isSomeOnPageSelected ? "indeterminate" : false)} onCheckedChange={handleSelectAllOnPage} aria-label="Select all items on this page"/></TableHead>) : null
+                  }<TableHead className="w-[120px] py-2">Submitted</TableHead><TableHead className="min-w-[120px] max-w-[150px] py-2">Campaign Key</TableHead><TableHead className="min-w-[150px] max-w-[200px] py-2">Campaign Name</TableHead><TableHead className="min-w-[120px] max-w-[150px] py-2">ADID/IDFA</TableHead><TableHead className="w-[120px] py-2">User Name</TableHead><TableHead className="w-[130px] py-2">Contact</TableHead><TableHead className="flex-1 min-w-[180px] py-2">Remarks</TableHead><TableHead className="w-[130px] py-2 text-center">Status</TableHead>{
+                    isAdmin ? (<TableHead className="w-[70px] py-2 text-center">Edit</TableHead>) : null
+                  }</TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedDataRows.map((row) => (
-                    <TableRow key={row.key} className="text-xs hover:bg-muted/50" data-state={selectedRows.has(row.key) ? "selected" : ""}>
-                       {isAdmin && (
-                        <TableCell className="px-2 py-1 text-center"> {/* 여백 줄임 */}
-                           <Checkbox 
-                            checked={selectedRows.has(row.key)}
-                            onCheckedChange={(checked) => handleRowSelectionChange(row, checked)}
-                            aria-labelledby={`label-select-row-${row.key}`}
-                           />
+                    <TableRow key={row.key} className="text-xs hover:bg-muted/50" data-state={selectedRows.has(row.key) ? "selected" : ""}>{
+                       isAdmin ? (
+                        <TableCell className="px-1 py-1 text-center">
+                           <Checkbox checked={selectedRows.has(row.key)} onCheckedChange={(checked) => handleRowSelectionChange(row, checked)} aria-labelledby={`label-select-row-${row.key}`}/>
                            <span id={`label-select-row-${row.key}`} className="sr-only">Select row for campaign key {row.campaignKey}</span>
                         </TableCell>
-                      )}
-                      <TableCell className="font-medium py-2">
-                        {row.originalInquirySubmittedAt ? format(new Date(row.originalInquirySubmittedAt), "yyyy-MM-dd") : 'N/A'}
-                      </TableCell>
-                      <TableCell className="py-2 truncate max-w-[120px]">{row.campaignKey}</TableCell>
-                      <TableCell className="py-2 truncate max-w-[200px]">{row.campaignName}</TableCell>
-                      <TableCell className="py-2 truncate max-w-[120px]">{row.adidOrIdfa}</TableCell>
-                      <TableCell className="py-2 truncate max-w-[100px]">{row.userName}</TableCell>
-                      <TableCell className="py-2 truncate max-w-[120px]">{row.contact}</TableCell>
-                      <TableCell className="py-2 truncate max-w-[none] whitespace-normal break-words">{row.remarks}</TableCell> {/* 잘림 대신 줄바꿈 */}
-                      <TableCell className="py-2 text-center">{renderStatusBadge(row.status)}</TableCell>
-                      {isAdmin && (
+                      ) : null
+                      }<TableCell className="font-medium py-2">{row.originalInquirySubmittedAt ? format(new Date(row.originalInquirySubmittedAt), "yyyy-MM-dd") : 'N/A'}</TableCell><TableCell className="py-2 truncate max-w-[150px]">{row.campaignKey}</TableCell><TableCell className="py-2 truncate max-w-[200px]">{row.campaignName}</TableCell><TableCell className="py-2 truncate max-w-[150px]">{row.adidOrIdfa}</TableCell><TableCell className="py-2 truncate max-w-[120px]">{row.userName}</TableCell><TableCell className="py-2 truncate max-w-[130px]">{row.contact}</TableCell><TableCell className="py-2 whitespace-normal break-words">{row.remarks}</TableCell><TableCell className="py-2 text-center">{renderStatusBadge(row.status)}</TableCell>{
+                      isAdmin ? (
                         <TableCell className="py-2 text-center">
                           <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" size="icon" className="h-6 w-6">
-                                      <Edit className="h-3 w-3" />
+                                  <Button variant="ghost" size="icon" className="h-7 w-7">
+                                      <MoreHorizontal className="h-4 w-4" />
                                   </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
@@ -500,8 +453,8 @@ export default function DashboardPage() {
                               </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
-                      )}
-                    </TableRow>
+                      ) : null
+                    }</TableRow>
                   ))}
                 </TableBody>
               </Table>
@@ -537,4 +490,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
     
