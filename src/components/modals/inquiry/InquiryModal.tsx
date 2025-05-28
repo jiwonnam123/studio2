@@ -34,17 +34,17 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
 
   const handleFileChange = useCallback((file: UploadedFile | null) => {
     setUploadedFile(file);
-    // If file is removed or changes, reset validation state until new validation completes
+    // If file is removed or changes to a non-success state (e.g. error from FileUploadZone),
+    // reset the excelValidationState. The ExcelUploadTab will re-validate if a new 'success' file is provided.
     if (!file || file.status !== 'success') {
-      if (excelValidationState !== null) { // Only reset if it was previously set
-         setExcelValidationState(null); // This will be re-populated by ExcelUploadTab's onValidationComplete
+      if (excelValidationState !== null) { 
+         setExcelValidationState(null); 
       }
     }
-  }, [excelValidationState]); // excelValidationState in dep array for the conditional reset
+  }, [excelValidationState]); // Dependency on excelValidationState is to allow conditional reset
 
   const handleExcelValidationComplete = useCallback((result: ExcelValidationResult) => {
     setExcelValidationState(prevState => {
-      // Avoid unnecessary re-renders if the result is identical
       if (JSON.stringify(prevState) === JSON.stringify(result)) {
         return prevState;
       }
@@ -91,7 +91,6 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
     }
 
     setIsSubmitting(false);
-    // Reset states after successful submission for next use
     setUploadedFile(null);
     setExcelValidationState(null);
     onOpenChange(false);
@@ -99,21 +98,19 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
 
   const handleModalOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
-       // Reset states when modal is closed, ensuring a clean state for next open
        setUploadedFile(null);
        setExcelValidationState(null);
-       // Optionally reset active tab:
-       // setActiveTab('excel');
+       // setActiveTab('excel'); // Optionally reset tab to default
     }
     onOpenChange(isOpen);
   };
 
-  // Effect to reset states when modal is closed (if not submitted)
+  // Effect to reset states when modal is programmatically closed or 'open' prop changes to false
   useEffect(() => {
     if (!open) {
       setUploadedFile(null);
       setExcelValidationState(null);
-      // setActiveTab('excel'); // Optionally reset tab
+      // setActiveTab('excel'); 
     }
   }, [open]);
 
