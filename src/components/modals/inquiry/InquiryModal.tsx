@@ -32,191 +32,148 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>('excel');
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
   const [excelValidationState, setExcelValidationState] = useState<ExcelValidationResult | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false); // For main submit button
-  const [isProcessing, setIsProcessing] = useState(false); // For Excel worker processing
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false); // Global processing state for worker
 
   const workerRef = useRef<Worker | null>(null);
   const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const clearProcessingTimeout = useCallback(() => {
+  const clearWorkerAndTimeout = useCallback(() => {
+    if (workerRef.current) {
+      workerRef.current.terminate();
+      workerRef.current = null;
+    }
     if (processingTimeoutRef.current) {
       clearTimeout(processingTimeoutRef.current);
       processingTimeoutRef.current = null;
     }
-  }, []);
-  
-  const terminateWorker = useCallback(() => {
-    if (workerRef.current) {
-      // console.log("Terminating worker explicitly");
-      workerRef.current.terminate();
-      workerRef.current = null;
-    }
+    setIsProcessing(false); // Ensure processing state is reset
   }, []);
 
   const handleExcelValidationComplete = useCallback((result: WorkerParseResponse) => {
-    // This function now directly receives WorkerParseResponse
-    // and updates excelValidationState (which is ExcelValidationResult type)
-    setExcelValidationState(prevResult => {
-      const newValidationResult: ExcelValidationResult = {
-        error: result.error,
-        hasData: result.dataExistsInSheet, // Use dataExistsInSheet from worker
-        totalDataRows: result.totalDataRows,
-        previewData: result.previewData,
-        fileSize: result.fileSize,
-        processingTime: result.processingTime,
-        isLargeFile: result.isLargeFile,
-        headersValid: result.headersValid,
-      };
+    const newValidationResult: ExcelValidationResult = {
+      error: result.error,
+      hasData: result.dataExistsInSheet,
+      totalDataRows: result.totalDataRows,
+      previewData: result.previewData,
+      fileSize: result.fileSize,
+      processingTime: result.processingTime,
+      isLargeFile: result.isLargeFile,
+      headersValid: result.headersValid,
+    };
 
-      if (JSON.stringify(prevResult) === JSON.stringify(newValidationResult)) {
-        return prevResult;
-      }
-      
-      // Show toasts based on the new result
-      if (newValidationResult.isLargeFile && !newValidationResult.error && newValidationResult.hasData) {
+    setExcelValidationState(newValidationResult);
+
+    if (!result.error && result.dataExistsInSheet) {
+      toast({
+        title: "File Valid & Ready",
+        description: `The uploaded Excel file is valid and contains ${result.totalDataRows || 0} data row(s). Preview below. All rows will be processed upon submission.`,
+      });
+    } else if (result.isLargeFile && !result.error && result.dataExistsInSheet) { // This condition might be redundant due to above, but specific for large files
         toast({
           title: "대용량 파일 처리 완료",
-          description: `${newValidationResult.fileSize ? (newValidationResult.fileSize / 1024 / 1024).toFixed(1) : 'Large'}MB 파일 (${newValidationResult.totalDataRows || 0} 행) 처리가 완료되었습니다.`,
+          description: `${result.fileSize ? (result.fileSize / 1024 / 1024).toFixed(1) : 'Large'}MB 파일 (${result.totalDataRows || 0} 행) 처리가 완료되었습니다.`,
         });
-      } else if (!newValidationResult.error && newValidationResult.hasData) {
-         toast({
-          title: "File Valid & Ready",
-          description: `The uploaded Excel file is valid and contains ${newValidationResult.totalDataRows || 0} data row(s). Preview below. All rows will be processed upon submission.`,
-        });
-      }
-      return newValidationResult;
-    });
-  }, [toast]); 
-
-  const initializeAndRunWorker = useCallback((file: File) => {
-    terminateWorker(); 
-    clearProcessingTimeout();
-
-    const newWorker = new Worker(new URL('@/workers/excelParser.worker.ts', import.meta.url), {
-      type: 'module',
-    });
-    workerRef.current = newWorker;
-
-    newWorker.onmessage = (event: MessageEvent<WorkerParseResponse>) => {
-      if (workerRef.current !== newWorker) {
-        // console.log("Stale worker message, ignoring.");
-        newWorker.terminate(); // Terminate the sender if it's not the current one
-        return;
-      }
-      // console.log("InquiryModal: Worker message received", event.data);
-      clearProcessingTimeout();
-      setIsProcessing(false);
-      handleExcelValidationComplete(event.data);
-      
-      if (event.data.processingTime && event.data.fileSize) {
-        console.log(`Excel 처리 완료:`, {
-          파일크기: `${(event.data.fileSize / 1024).toFixed(1)}KB`,
-          처리시간: `${event.data.processingTime.toFixed(1)}ms`,
-          행수: event.data.totalDataRows,
-          헤더유효: event.data.headersValid,
-          데이터존재: event.data.dataExistsInSheet,
-        });
-      }
-      terminateWorker(); 
-    };
-
-    newWorker.onerror = (err) => {
-      if (workerRef.current !== newWorker) {
-        // console.log("Stale worker error, ignoring.");
-        newWorker.terminate();
-        return;
-      }
-      console.error("InquiryModal: Worker error:", err);
-      clearProcessingTimeout();
-      setIsProcessing(false);
-      handleExcelValidationComplete({ // Pass a WorkerParseResponse-like object
-        error: `File parsing worker error: ${err.message || 'An unexpected error occurred.'}`,
-        previewData: null,
-        totalDataRows: 0,
-        headersValid: false,
-        dataExistsInSheet: false,
-        fileSize: file.size, // Include fileSize even on error
-        isLargeFile: file.size > (LARGE_FILE_WARNING_THRESHOLD_MB * 1024 * 1024),
-        // processingTime might not be accurate here, but we can set it to 0 or undefined
-      });
-      terminateWorker(); 
-    };
-
-    processingTimeoutRef.current = setTimeout(() => {
-      if (workerRef.current !== newWorker) return; 
-      // console.warn("InquiryModal: Worker processing timed out.");
-      setIsProcessing(false);
-      handleExcelValidationComplete({ // Pass a WorkerParseResponse-like object
-        error: 'File parsing timed out. The file might be too large or complex.',
-        previewData: null,
-        totalDataRows: 0,
-        headersValid: false,
-        dataExistsInSheet: false,
-        fileSize: file.size,
-        isLargeFile: file.size > (LARGE_FILE_WARNING_THRESHOLD_MB * 1024 * 1024),
-      });
-      terminateWorker();
-    }, PROCESSING_TIMEOUT_MS);
-
-    newWorker.postMessage({ file });
-
-  }, [terminateWorker, clearProcessingTimeout, handleExcelValidationComplete]);
-
-  const processFileWithWorker = useCallback((file: File) => {
-    setIsProcessing(true);
-    setExcelValidationState(null); 
-
-    if (file.size > LARGE_FILE_WARNING_THRESHOLD_MB * 1024 * 1024) { 
-      toast({
-        title: "대용량 파일 처리 중",
-        description: `파일 크기가 ${(file.size / 1024 / 1024).toFixed(1)}MB 입니다. 처리에 다소 시간이 걸릴 수 있습니다.`,
-        variant: "default", 
-        duration: 5000,
-      });
     }
-    initializeAndRunWorker(file);
-  }, [initializeAndRunWorker, toast]);
+    // Error toasts are typically handled by ExcelUploadTab or directly based on newValidationResult.error
+  }, [toast]);
+
+  useEffect(() => {
+    if (uploadedFile && uploadedFile.status === 'success' && uploadedFile.file) {
+      setIsProcessing(true);
+      setExcelValidationState(null); // Clear previous validation state
+      clearWorkerAndTimeout(); // Clear any existing worker or timeout
+
+      const currentFile = uploadedFile.file;
+
+      if (currentFile.size > (LARGE_FILE_WARNING_THRESHOLD_MB * 1024 * 1024)) {
+        toast({
+          title: "대용량 파일 처리 중",
+          description: `파일 크기가 ${(currentFile.size / 1024 / 1024).toFixed(1)}MB 입니다. 처리에 다소 시간이 걸릴 수 있습니다.`,
+          variant: "default",
+          duration: 5000,
+        });
+      }
+      
+      const newWorker = new Worker(new URL('@/workers/excelParser.worker.ts', import.meta.url), {
+        type: 'module',
+      });
+      workerRef.current = newWorker;
+
+      newWorker.onmessage = (event: MessageEvent<WorkerParseResponse>) => {
+        if (workerRef.current === newWorker) { // Process only if it's the current worker
+          handleExcelValidationComplete(event.data);
+          clearWorkerAndTimeout();
+        } else {
+          newWorker.terminate(); // Stale worker, terminate it
+        }
+      };
+
+      newWorker.onerror = (err) => {
+        if (workerRef.current === newWorker) {
+          console.error("InquiryModal: Worker error:", err);
+          handleExcelValidationComplete({
+            error: `File parsing worker error: ${err.message || 'An unexpected error occurred.'}`,
+            previewData: null, totalDataRows: 0, headersValid: false, dataExistsInSheet: false,
+            fileSize: currentFile.size,
+            isLargeFile: currentFile.size > (LARGE_FILE_WARNING_THRESHOLD_MB * 1024 * 1024),
+          });
+          clearWorkerAndTimeout();
+        } else {
+           newWorker.terminate(); // Stale worker, terminate it
+        }
+      };
+
+      processingTimeoutRef.current = setTimeout(() => {
+        if (workerRef.current === newWorker) {
+          console.warn("InquiryModal: Worker processing timed out.");
+          handleExcelValidationComplete({
+            error: 'File parsing timed out. The file might be too large or complex.',
+            previewData: null, totalDataRows: 0, headersValid: false, dataExistsInSheet: false,
+            fileSize: currentFile.size,
+            isLargeFile: currentFile.size > (LARGE_FILE_WARNING_THRESHOLD_MB * 1024 * 1024),
+          });
+          clearWorkerAndTimeout();
+        } else {
+            newWorker.terminate(); // Stale worker, terminate it
+        }
+      }, PROCESSING_TIMEOUT_MS);
+
+      newWorker.postMessage({ file: currentFile });
+
+    } else if (!uploadedFile) { // File removed or initial state
+        clearWorkerAndTimeout();
+        setExcelValidationState(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploadedFile, handleExcelValidationComplete, clearWorkerAndTimeout]); // Added clearWorkerAndTimeout to dependencies
 
   const handleFileChange = useCallback((newUploadedFile: UploadedFile | null) => {
-    setUploadedFile(newUploadedFile); // Update the state for FileUploadZone
-    
+    setUploadedFile(newUploadedFile);
     if (!newUploadedFile || newUploadedFile.status !== 'success') {
-      setExcelValidationState(null); 
-      setIsProcessing(false);      
-      terminateWorker();
-      clearProcessingTimeout();
-    } else {
-      // File is successfully "uploaded" by FileUploadZone, now process it with worker
-      processFileWithWorker(newUploadedFile.file);
+      setExcelValidationState(null); // Reset validation if file removed or initial error in FileUploadZone
+      clearWorkerAndTimeout(); // Also clear worker if file is removed or had an initial error
     }
-  }, [processFileWithWorker, terminateWorker, clearProcessingTimeout]);
+    // Worker processing will be triggered by the useEffect listening to 'uploadedFile'
+  }, [clearWorkerAndTimeout]);
 
   const handleSubmitInquiry = async () => {
     setIsSubmitting(true);
-    // Simulate API call or actual submission logic
-    await new Promise(resolve => setTimeout(resolve, 1500)); 
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
     if (activeTab === 'excel') {
-      // Validation for submit button relies on excelValidationState
       if (excelValidationState && !excelValidationState.error && excelValidationState.hasData) {
         toast({
           title: "Inquiry Submitted (Excel)",
           description: `File "${uploadedFile?.name}" with ${excelValidationState.totalDataRows || 0} data rows has been submitted.`,
         });
-         // Reset state after successful submission
-        setUploadedFile(null);
-        setExcelValidationState(null);
-        setIsProcessing(false);
-        terminateWorker();
-        clearProcessingTimeout();
-        onOpenChange(false);
+        handleModalOpenChange(false); // Close and reset
       } else {
-         // This case should ideally be prevented by disabled button, but good for robustness
         let description = "Cannot submit. Please upload a valid Excel file with data.";
-        if (uploadedFile && uploadedFile.status === 'error') {
-          description = uploadedFile.errorMessage || "Cannot submit: file upload error.";
-        } else if (excelValidationState && excelValidationState.error) {
-          description = `Cannot submit: ${excelValidationState.error}`;
+        if (uploadedFile && uploadedFile.status === 'error' && uploadedFile.errorMessage) {
+          description = uploadedFile.errorMessage;
+        } else if (excelValidationState?.error) {
+          description = excelValidationState.error;
         } else if (excelValidationState && !excelValidationState.hasData) {
           description = "Cannot submit: The Excel file is valid but contains no data rows.";
         }
@@ -228,61 +185,54 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
         title: "Inquiry Submitted (Direct)",
         description: "Your direct entry inquiry has been submitted.",
       });
-       onOpenChange(false); // Close modal on successful submission
+      handleModalOpenChange(false); // Close and reset
     }
     setIsSubmitting(false);
   };
 
-  const resetAllStates = useCallback(() => {
-    setUploadedFile(null);
-    setExcelValidationState(null);
-    setIsProcessing(false);
-    terminateWorker();
-    clearProcessingTimeout();
-  }, [terminateWorker, clearProcessingTimeout]);
-
   const handleModalOpenChange = useCallback((isOpen: boolean) => {
     if (!isOpen) {
-      resetAllStates();
+      setUploadedFile(null);
+      setExcelValidationState(null);
+      clearWorkerAndTimeout();
+      setActiveTab('excel'); // Reset to default tab
     }
     onOpenChange(isOpen);
-  }, [onOpenChange, resetAllStates]);
-  
-  // Cleanup on component unmount
+  }, [onOpenChange, clearWorkerAndTimeout]);
+
   useEffect(() => {
+    // Cleanup worker and timeout when the modal is unmounted or closed
     return () => {
-        terminateWorker();
-        clearProcessingTimeout();
+      clearWorkerAndTimeout();
     };
-  }, [terminateWorker, clearProcessingTimeout]);
+  }, [clearWorkerAndTimeout]);
 
   const isExcelSubmitDisabled = () => {
-    if (isSubmitting || isProcessing) return true; // Disable if main submitting or worker processing
+    if (isSubmitting || isProcessing) return true;
     if (!uploadedFile || uploadedFile.status !== 'success') return true;
     if (!excelValidationState || excelValidationState.error !== null || !excelValidationState.hasData) return true;
     return false;
   };
 
   const isDirectEntrySubmitDisabled = () => {
-    if (isSubmitting || isProcessing) return true; // Disable if worker processing for excel tab (global isProcessing)
-    return false; 
+    if (isSubmitting || isProcessing) return true;
+    return false;
   };
 
   return (
     <Dialog open={open} onOpenChange={handleModalOpenChange}>
       <DialogContent className="max-w-[1000px] w-[95vw] sm:w-[90vw] md:w-[1000px] p-0 data-[state=open]:h-auto sm:h-[calc(100vh-100px)] sm:max-h-[700px] flex flex-col">
-        <DialogHeader className="p-6 pb-2 text-center sm:text-center"> {/* Reduced pb for tighter spacing */}
+        <DialogHeader className="p-6 pb-2 text-center sm:text-center">
           <DialogTitle className="text-2xl">Submit Inquiry</DialogTitle>
           <DialogDescription>
             Upload an Excel file or enter details manually.
           </DialogDescription>
-           {isProcessing && activeTab === 'excel' && (
+          {isProcessing && activeTab === 'excel' && (
             <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground pt-3">
               <Loader2 className="h-5 w-5 animate-spin" />
               파일 처리 중입니다. 잠시만 기다려 주세요...
             </div>
           )}
-          {/* Display processing info only if not currently processing AND validation state exists */}
           {!isProcessing && excelValidationState && activeTab === 'excel' && (
             <div className="text-xs text-muted-foreground pt-2 space-y-0.5">
               {excelValidationState.fileSize !== undefined && (
@@ -308,9 +258,9 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
             <TabsContent value="excel" className="mt-0">
               <ExcelUploadTab
                 uploadedFileState={uploadedFile}
-                onFileChange={handleFileChange} // Pass the modal's handler
+                onFileChange={handleFileChange}
                 excelValidationState={excelValidationState}
-                isProcessing={isProcessing} // Pass the modal's processing state
+                isProcessing={isProcessing}
               />
             </TabsContent>
             <TabsContent value="direct" className="mt-0 h-full">
@@ -324,7 +274,7 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
             onClick={handleSubmitInquiry}
             className="w-full sm:w-auto"
             disabled={
-              isSubmitting || isProcessing || // Global processing check first
+              isSubmitting || isProcessing ||
               (activeTab === 'excel' && isExcelSubmitDisabled()) ||
               (activeTab === 'direct' && isDirectEntrySubmitDisabled())
             }
@@ -337,3 +287,5 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
     </Dialog>
   );
 }
+
+    
