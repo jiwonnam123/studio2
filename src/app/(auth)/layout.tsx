@@ -3,8 +3,7 @@
 
 import React, { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
-// Link import는 더 이상 사용되지 않으므로 제거합니다.
-// Image import는 더 이상 사용되지 않으므로 제거합니다.
+import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 
@@ -26,27 +25,23 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     );
   }
 
-  // If authenticated, we want to show a loading state while redirecting,
-  // instead of briefly flashing the login/register page.
   if (isAuthenticated) {
     return (
          <div className="flex h-screen w-screen items-center justify-center bg-background">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            <p className="ml-4 text-lg text-foreground">Redirecting...</p>
+            <p className="ml-4 text-lg text-foreground">리디렉션 중...</p>
         </div>
     );
   }
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-       {/* 로고 이미지와 링크를 포함한 div 제거 */}
       <div className="w-full max-w-md">
         {children} {/* This will be LoginForm or RegisterForm */}
       </div>
        <footer className="absolute bottom-8 text-center text-sm text-muted-foreground">
-        © {new Date().getFullYear()} Adpopcorn. All rights reserved.
+        © {new Date().getFullYear()} Adpopcorn. 모든 권리 보유.
       </footer>
     </div>
   );
 }
-

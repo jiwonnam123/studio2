@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, ListChecks, MoreHorizontal, CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { PlusCircle, ListChecks, MoreHorizontal, CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight, FileText } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { SubmittedInquiry, SubmittedInquiryDataRow } from '@/types';
 import { format } from 'date-fns';
@@ -13,21 +13,24 @@ import { InquiryModal } from '@/components/modals/inquiry/InquiryModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { firestore } from '@/lib/firebase';
 import { collection, query, where, orderBy, onSnapshot, Timestamp, doc, updateDoc, writeBatch, getDoc, type DocumentData } from 'firebase/firestore';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const ADMIN_EMAIL = 'jirrral@gmail.com';
-const STATUS_OPTIONS = ["Pending", "In Progress", "On Hold", "Resolved", "Closed", "Requires Info"];
+const STATUS_OPTIONS = ["처리 전", "처리 중", "보류 중", "처리 완료", "종료됨", "정보 필요"];
 const ITEMS_PER_PAGE = 20;
 
 interface FlattenedDataRow extends SubmittedInquiryDataRow {
-  key: string; // Unique key for React list
+  key: string; 
   originalInquiryId: string;
   originalInquirySubmittedAt: string;
-  originalDataRowIndex: number; // Index within the original inquiry's data array
+  originalDataRowIndex: number; 
+  userId?: string; // 관리자 뷰에서 사용
+  source?: 'excel' | 'direct'; // 관리자 뷰에서 사용
+  fileName?: string; // 관리자 뷰에서 사용
 }
 
 export default function DashboardPage() {
@@ -61,10 +64,10 @@ export default function DashboardPage() {
     let q;
 
     if (isAdmin) {
-      console.log("[Dashboard] Admin user detected. Fetching all inquiries.");
+      console.log("[대시보드] 관리자 사용자 감지. 모든 문의를 가져옵니다.");
       q = query(inquiriesRef, orderBy("submittedAt", "desc"));
     } else {
-      console.log("[Dashboard] Normal user detected. Fetching user-specific inquiries for userId:", user.id);
+      console.log("[대시보드] 일반 사용자 감지. 사용자별 문의를 가져옵니다. userId:", user.id);
       q = query(
         inquiriesRef,
         where("userId", "==", user.id),
@@ -73,7 +76,7 @@ export default function DashboardPage() {
     }
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      console.log(`[Dashboard] onSnapshot triggered. Found ${querySnapshot.docs.length} documents.`);
+      console.log(`[대시보드] onSnapshot 트리거됨. ${querySnapshot.docs.length}개 문서 발견.`);
       const fetchedInquiries = querySnapshot.docs.map(docSnapshot => {
         const data = docSnapshot.data() as DocumentData;
         let submittedAtStr = '';
@@ -84,7 +87,7 @@ export default function DashboardPage() {
         } else if (data.submittedAt && typeof data.submittedAt.toDate === 'function') {
            submittedAtStr = data.submittedAt.toDate().toISOString();
         } else {
-            console.warn(`[Dashboard] Document ${docSnapshot.id} has invalid submittedAt:`, data.submittedAt);
+            console.warn(`[대시보드] 문서 ${docSnapshot.id}에 유효하지 않은 submittedAt이 있습니다:`, data.submittedAt);
             submittedAtStr = new Date(0).toISOString(); 
         }
 
@@ -95,7 +98,7 @@ export default function DashboardPage() {
             userName: item.userName || '',
             contact: item.contact || '',
             remarks: item.remarks || '',
-            status: item.status || "Pending", 
+            status: item.status || "처리 전", 
             adminNotes: item.adminNotes || '',
         }));
 
@@ -113,13 +116,13 @@ export default function DashboardPage() {
       setCurrentPage(1); 
       setSelectedRows(new Map());
     }, (error) => {
-      console.error("[Dashboard] Error fetching inquiries: ", error);
-      toast({ title: "Error", description: "Could not fetch submitted inquiries.", variant: "destructive" });
+      console.error("[대시보드] 문의 가져오기 오류: ", error);
+      toast({ title: "오류", description: "제출된 문의를 가져올 수 없습니다.", variant: "destructive" });
       setIsLoadingInquiries(false);
     });
 
     return () => {
-      console.log("[Dashboard] Unsubscribing from inquiries snapshot listener.");
+      console.log("[대시보드] 문의 스냅샷 리스너 구독 취소 중.");
       unsubscribe();
     };
   }, [user?.id, isAdmin, toast]); 
@@ -132,9 +135,12 @@ export default function DashboardPage() {
         originalInquiryId: inquiry.id,
         originalInquirySubmittedAt: inquiry.submittedAt,
         originalDataRowIndex: dataRowIndex,
+        userId: isAdmin ? inquiry.userId : undefined, // 관리자만 userId 표시
+        source: isAdmin ? inquiry.source : undefined, // 관리자만 source 표시
+        fileName: isAdmin ? inquiry.fileName : undefined, // 관리자만 fileName 표시
       }))
     );
-  }, [submittedInquiries]);
+  }, [submittedInquiries, isAdmin]);
 
   const totalItems = flattenedDataRows.length;
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
@@ -156,19 +162,19 @@ export default function DashboardPage() {
 
   const handleIndividualStatusChange = async (inquiryId: string, dataRowIndex: number, newStatus: string) => {
     if (!isAdmin) {
-        toast({ title: "Unauthorized", description: "Only admins can change status.", variant: "destructive" });
+        toast({ title: "권한 없음", description: "관리자만 상태를 변경할 수 있습니다.", variant: "destructive" });
         return;
     }
     try {
         const inquiryRef = doc(firestore, "inquiries", inquiryId);
         const docSnap = await getDoc(inquiryRef);
         if (!docSnap.exists()) {
-            toast({ title: "Error", description: "Inquiry not found in database.", variant: "destructive" });
+            toast({ title: "오류", description: "데이터베이스에서 문의를 찾을 수 없습니다.", variant: "destructive" });
             return;
         }
         const currentInquiryData = docSnap.data()?.data as SubmittedInquiryDataRow[];
         if (!currentInquiryData) {
-            toast({ title: "Error", description: "Inquiry data is missing or malformed.", variant: "destructive" });
+            toast({ title: "오류", description: "문의 데이터가 없거나 형식이 잘못되었습니다.", variant: "destructive" });
             return;
         }
 
@@ -176,13 +182,13 @@ export default function DashboardPage() {
         if (newDataArray[dataRowIndex]) {
             newDataArray[dataRowIndex] = { ...newDataArray[dataRowIndex], status: newStatus };
             await updateDoc(inquiryRef, { data: newDataArray });
-            toast({ title: "Status Updated", description: `Status changed to ${newStatus}.` });
+            toast({ title: "상태 업데이트됨", description: `상태가 ${newStatus}(으)로 변경되었습니다.` });
         } else {
-            toast({ title: "Error", description: "Data row index out of bounds.", variant: "destructive" });
+            toast({ title: "오류", description: "데이터 행 인덱스가 범위를 벗어났습니다.", variant: "destructive" });
         }
     } catch (error) {
-        console.error("Error updating status:", error);
-        toast({ title: "Error", description: "Could not update status.", variant: "destructive" });
+        console.error("상태 업데이트 오류:", error);
+        toast({ title: "오류", description: "상태를 업데이트할 수 없습니다.", variant: "destructive" });
     }
   };
   
@@ -212,15 +218,15 @@ export default function DashboardPage() {
 
   const handleBulkStatusUpdate = async () => {
     if (selectedRows.size === 0) {
-      toast({ title: "No items selected", description: "Please select items to update.", variant: "destructive" });
+      toast({ title: "선택된 항목 없음", description: "업데이트할 항목을 선택해주세요.", variant: "destructive" });
       return;
     }
     if (!bulkStatus) {
-      toast({ title: "No status selected", description: "Please select a status to apply.", variant: "destructive" });
+      toast({ title: "선택된 상태 없음", description: "적용할 상태를 선택해주세요.", variant: "destructive" });
       return;
     }
     if (!isAdmin) {
-      toast({ title: "Unauthorized", description: "Only admins can change status.", variant: "destructive" });
+      toast({ title: "권한 없음", description: "관리자만 상태를 변경할 수 있습니다.", variant: "destructive" });
       return;
     }
 
@@ -238,7 +244,7 @@ export default function DashboardPage() {
             updatedDataArray: [...(docSnap.data()?.data as SubmittedInquiryDataRow[] || [])] 
           });
         } else {
-          console.warn(`Document ${row.originalInquiryId} not found for bulk update of row ${row.key}`);
+          console.warn(`문서 ${row.originalInquiryId}을(를) 찾을 수 없어 행 ${row.key}의 일괄 업데이트를 건너<0xEB><08><0x81>니다.`);
           continue; 
         }
       }
@@ -255,12 +261,12 @@ export default function DashboardPage() {
 
     try {
       await batch.commit();
-      toast({ title: "Bulk Status Update Successful", description: `${selectedRows.size} items updated to ${bulkStatus}.` });
+      toast({ title: "일괄 상태 업데이트 성공", description: `${selectedRows.size}개 항목이 ${bulkStatus}(으)로 업데이트되었습니다.` });
       setSelectedRows(new Map()); 
       setBulkStatus(''); 
     } catch (error) {
-      console.error("Error in bulk status update:", error);
-      toast({ title: "Bulk Update Failed", description: "Could not update all selected items.", variant: "destructive" });
+      console.error("일괄 상태 업데이트 오류:", error);
+      toast({ title: "일괄 업데이트 실패", description: "선택된 모든 항목을 업데이트할 수 없었습니다.", variant: "destructive" });
     } finally {
       setIsBulkUpdating(false);
     }
@@ -295,24 +301,24 @@ export default function DashboardPage() {
     let icon = <Clock className="mr-1 h-3 w-3" />;
 
     switch (status?.toLowerCase()) {
-      case "pending":
+      case "처리 전":
         variant = "outline";
         icon = <Clock className="mr-1 h-3 w-3 text-yellow-500" />;
         break;
-      case "in progress":
+      case "처리 중":
         variant = "secondary";
         icon = <Loader2 className="mr-1 h-3 w-3 animate-spin text-blue-500" />;
         break;
-      case "resolved":
-      case "closed":
+      case "처리 완료":
+      case "종료됨":
         variant = "default"; 
         icon = <CheckCircle className="mr-1 h-3 w-3 text-green-500" />;
         break;
-      case "on hold":
+      case "보류 중":
         variant = "outline";
         icon = <Clock className="mr-1 h-3 w-3 text-orange-500" />;
         break;
-      case "requires info":
+      case "정보 필요":
          variant = "destructive";
          icon = <XCircle className="mr-1 h-3 w-3 text-red-500" />;
         break;
@@ -331,26 +337,26 @@ export default function DashboardPage() {
       <section>
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">My Submitted Inquiries</h1>
+            <h1 className="text-3xl font-bold tracking-tight">제출된 문의 내역</h1>
             <p className="text-muted-foreground">
-              View and manage your submitted inquiry data.{isAdmin ? <Badge variant="secondary" className="ml-2">Admin View</Badge> : null}
+              제출된 문의 데이터를 확인하고 관리하세요.{isAdmin ? <Badge variant="secondary" className="ml-2">관리자 보기</Badge> : null}
             </p>
           </div>
           <Button onClick={() => setIsInquiryModalOpen(true)}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Submit New Inquiry
+            <PlusCircle className="mr-2 h-4 w-4" /> 새 문의 제출
           </Button>
         </div>
 
-        {isAdmin ? (
+        {isAdmin && (
           <Card className="mb-6 shadow-sm border-dashed bg-muted/30">
             <CardHeader className="pb-3 pt-4">
-              <CardTitle className="text-base">Bulk Status Update</CardTitle>
-              <CardDescription className="text-xs">Select items from the table below, choose a status, and click save.</CardDescription>
+              <CardTitle className="text-base">일괄 상태 업데이트</CardTitle>
+              <CardDescription className="text-xs">아래 표에서 항목을 선택하고, 상태를 선택한 후 저장하세요.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col sm:flex-row items-center gap-3">
               <Select value={bulkStatus} onValueChange={setBulkStatus}>
                 <SelectTrigger className="w-full sm:w-[200px] h-9">
-                  <SelectValue placeholder="Select status to apply" />
+                  <SelectValue placeholder="적용할 상태 선택" />
                 </SelectTrigger>
                 <SelectContent>
                   {STATUS_OPTIONS.map(statusOption => (
@@ -367,11 +373,11 @@ export default function DashboardPage() {
                 className="w-full sm:w-auto"
               >
                 {isBulkUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Save Status for ({selectedRows.size}) Items
+                선택된 항목 ({selectedRows.size}개) 상태 저장
               </Button>
             </CardContent>
           </Card>
-        ) : null}
+        )}
 
         {isLoadingInquiries ? (
           <Card>
@@ -390,14 +396,14 @@ export default function DashboardPage() {
         ) : flattenedDataRows.length === 0 ? (
           <Card>
             <CardHeader>
-                <CardTitle>No Inquiries Submitted Yet</CardTitle>
-                <CardDescription>Click "Submit New Inquiry" to get started.</CardDescription>
+                <CardTitle>아직 제출된 문의가 없습니다</CardTitle>
+                <CardDescription>"새 문의 제출"을 클릭하여 시작하세요.</CardDescription>
             </CardHeader>
             <CardContent className="text-center py-10">
-              <ListChecks className="mx-auto h-12 w-12 text-muted-foreground" />
-              <h3 className="mt-2 text-xl font-semibold">No data to display</h3>
+              <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+              <h3 className="mt-2 text-xl font-semibold">표시할 데이터 없음</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                You haven't submitted any inquiries yet.
+                아직 문의를 제출하지 않았습니다.
               </p>
             </CardContent>
           </Card>
@@ -407,16 +413,16 @@ export default function DashboardPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {isAdmin ? <TableHead className="w-[30px] px-1 py-2 text-center"><Checkbox checked={isAllOnPageSelected || (isSomeOnPageSelected ? "indeterminate" : false)} onCheckedChange={handleSelectAllOnPage} aria-label="Select all items on this page"/></TableHead> : null}
-                    <TableHead className="w-[120px] py-2 px-3 text-left">Submitted</TableHead>
-                    <TableHead className="min-w-[120px] max-w-[150px] py-2 px-3 text-left">Campaign Key</TableHead>
-                    <TableHead className="min-w-[150px] max-w-[200px] py-2 px-3 text-left">Campaign Name</TableHead>
+                    {isAdmin ? <TableHead className="w-[30px] px-1 py-2 text-center"><Checkbox checked={isAllOnPageSelected || (isSomeOnPageSelected ? "indeterminate" : false)} onCheckedChange={handleSelectAllOnPage} aria-label="이 페이지의 모든 항목 선택"/></TableHead> : null}
+                    <TableHead className="w-[120px] py-2 px-3 text-left">제출일</TableHead>
+                    <TableHead className="min-w-[120px] max-w-[150px] py-2 px-3 text-left">캠페인 키</TableHead>
+                    <TableHead className="min-w-[150px] max-w-[200px] py-2 px-3 text-left">캠페인 명</TableHead>
                     <TableHead className="min-w-[120px] max-w-[150px] py-2 px-3 text-left">ADID/IDFA</TableHead>
-                    <TableHead className="w-[120px] py-2 px-3 text-left">User Name</TableHead>
-                    <TableHead className="w-[130px] py-2 px-3 text-left">Contact</TableHead>
-                    <TableHead className="flex-1 min-w-[180px] py-2 px-3 text-left">Remarks</TableHead>
-                    <TableHead className="w-[130px] py-2 px-3 text-center">Status</TableHead>
-                    {isAdmin ? <TableHead className="w-[70px] py-2 px-3 text-center">Edit</TableHead> : null}
+                    <TableHead className="w-[120px] py-2 px-3 text-left">사용자 이름</TableHead>
+                    <TableHead className="w-[130px] py-2 px-3 text-left">연락처</TableHead>
+                    <TableHead className="flex-1 min-w-[180px] py-2 px-3 text-left">비고</TableHead>
+                    <TableHead className="w-[130px] py-2 px-3 text-center">상태</TableHead>
+                    {isAdmin ? <TableHead className="w-[70px] py-2 px-3 text-center">편집</TableHead> : null}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -425,7 +431,7 @@ export default function DashboardPage() {
                       {isAdmin ? (
                         <TableCell className="px-1 py-1 text-center">
                            <Checkbox checked={selectedRows.has(row.key)} onCheckedChange={(checked) => handleRowSelectionChange(row, checked)} aria-labelledby={`label-select-row-${row.key}`}/>
-                           <span id={`label-select-row-${row.key}`} className="sr-only">Select row for campaign key {row.campaignKey}</span>
+                           <span id={`label-select-row-${row.key}`} className="sr-only">캠페인 키 {row.campaignKey} 행 선택</span>
                         </TableCell>
                       ) : null}
                       <TableCell className="font-medium py-2 px-3 text-left">{row.originalInquirySubmittedAt ? format(new Date(row.originalInquirySubmittedAt), "yyyy-MM-dd") : 'N/A'}</TableCell>
@@ -445,7 +451,7 @@ export default function DashboardPage() {
                                   </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                  <DropdownMenuLabel>Update Status</DropdownMenuLabel>
+                                  <DropdownMenuLabel>상태 업데이트</DropdownMenuLabel>
                                   <DropdownMenuSeparator />
                                   <DropdownMenuRadioGroup 
                                       value={row.status}
@@ -457,7 +463,6 @@ export default function DashboardPage() {
                                           </DropdownMenuRadioItem>
                                       ))}
                                   </DropdownMenuRadioGroup>
-                                  {/* TODO: Add Admin Notes UI */}
                               </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -470,7 +475,7 @@ export default function DashboardPage() {
             {totalItems > 0 && (
               <div className="flex items-center justify-end space-x-2 py-4 mt-4 border-t pt-4">
                 <span className="text-sm text-muted-foreground">
-                  Page {totalPages > 0 ? currentPage : 0} of {totalPages > 0 ? totalPages : 0}
+                  페이지 {totalPages > 0 ? currentPage : 0} / {totalPages > 0 ? totalPages : 0}
                 </span>
                 <Button
                   variant="outline"
@@ -478,7 +483,7 @@ export default function DashboardPage() {
                   onClick={handlePreviousPage}
                   disabled={currentPage === 1}
                 >
-                  <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+                  <ChevronLeft className="h-4 w-4 mr-1" /> 이전
                 </Button>
                 <Button
                   variant="outline"
@@ -486,7 +491,7 @@ export default function DashboardPage() {
                   onClick={handleNextPage}
                   disabled={currentPage === totalPages || totalItems === 0}
                 >
-                  Next <ChevronRight className="h-4 w-4 ml-1" />
+                  다음 <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
               </div>
             )}
@@ -498,5 +503,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    

@@ -4,7 +4,7 @@
 import type React from 'react';
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { useDropzone, type Accept } from 'react-dropzone';
-import { UploadCloud, Loader2, AlertTriangle, FileText, XCircle, CheckCircle2 } from 'lucide-react';
+import { UploadCloud, Loader2, AlertTriangle } from 'lucide-react';
 import type { UploadedFile } from '@/types/inquiry';
 import { cn } from '@/lib/utils';
 
@@ -19,46 +19,55 @@ const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface FileUploadZoneProps {
   onFileAccepted: (file: UploadedFile | null) => void;
-  disabled?: boolean; // 부모로부터 받는 전역 비활성화 상태
+  disabled?: boolean; 
 }
 
 export function FileUploadZone({ onFileAccepted, disabled = false }: FileUploadZoneProps) {
-  const [internalError, setInternalError] = useState<string | null>(null);
-  // processingTimeoutRef는 더 이상 FileUploadZone에서 관리하지 않음
+  const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (processingTimeoutRef.current) {
+        clearTimeout(processingTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const onDrop = useCallback(
     (acceptedFiles: File[], fileRejections: any[]) => {
-      console.log("[FileUploadZone] onDrop called. Accepted:", acceptedFiles.length, "Rejected:", fileRejections.length, "Parent Disabled:", disabled);
-      setInternalError(null); // 이전 오류 메시지 초기화
+      console.log("[FileUploadZone] onDrop 호출됨. Accepted:", acceptedFiles.length, "Rejected:", fileRejections.length, "Parent Disabled:", disabled);
+      
+      if (processingTimeoutRef.current) {
+        clearTimeout(processingTimeoutRef.current);
+      }
 
       if (disabled) {
-        console.log("[FileUploadZone] Drop ignored because component is disabled by parent.");
+        console.log("[FileUploadZone] 부모에 의해 비활성화되어 드롭 무시됨.");
         return;
       }
 
       if (fileRejections.length > 0) {
         const rejection = fileRejections[0];
         const firstError = rejection.errors[0];
-        let errorMessage = "Invalid file.";
+        let errorMessage = "유효하지 않은 파일입니다.";
         if (firstError.code === 'file-too-large') {
-          errorMessage = `File is too large. Max size is ${MAX_FILE_SIZE_MB}MB.`;
+          errorMessage = `파일이 너무 큽니다. 최대 크기는 ${MAX_FILE_SIZE_MB}MB입니다.`;
         } else if (firstError.code === 'file-invalid-type') {
-          errorMessage = "Invalid file type. Please upload .xlsx, .xls, or .csv files.";
+          errorMessage = "잘못된 파일 형식입니다. .xlsx, .xls, 또는 .csv 파일을 업로드하세요.";
         } else {
-          errorMessage = firstError.message || "File rejected.";
+          errorMessage = firstError.message || "파일이 거부되었습니다.";
         }
         
-        setInternalError(errorMessage);
         const errorFile: UploadedFile = {
-          file: rejection.file, // fileRejections의 file은 File 객체일 수 있음
+          file: rejection.file,
           name: rejection.file.name,
           size: rejection.file.size,
           type: rejection.file.type,
-          status: 'error', // 드롭존 수준의 오류
+          status: 'error', 
           errorMessage: errorMessage,
         };
-        console.log("[FileUploadZone] Calling onFileAccepted with DROPZONE ERROR file:", errorFile.name, errorFile.errorMessage);
-        onFileAccepted(errorFile); // 부모에게 오류 상태 전달
+        console.log("[FileUploadZone] onFileAccepted 호출 (드롭존 오류 파일):", errorFile.name, errorFile.errorMessage);
+        onFileAccepted(errorFile);
         return;
       }
 
@@ -69,13 +78,12 @@ export function FileUploadZone({ onFileAccepted, disabled = false }: FileUploadZ
           name: file.name,
           size: file.size,
           type: file.type,
-          status: 'success', // 즉시 'success'로 설정하여 부모가 바로 처리 시작하도록 함
+          status: 'success', 
         };
-        console.log("[FileUploadZone] Calling onFileAccepted with SUCCESS file (immediately):", successFile.name, successFile.status);
+        console.log("[FileUploadZone] onFileAccepted 호출 (성공 파일 - 즉시):", successFile.name, successFile.status);
         onFileAccepted(successFile);
       } else {
-        console.log("[FileUploadZone] No files to process after drop.");
-        // 필요하다면 onFileAccepted(null) 호출
+        console.log("[FileUploadZone] 드롭 후 처리할 파일 없음.");
       }
     },
     [onFileAccepted, disabled] 
@@ -86,16 +94,16 @@ export function FileUploadZone({ onFileAccepted, disabled = false }: FileUploadZ
     accept: acceptFileTypes,
     maxSize: MAX_FILE_SIZE_BYTES, 
     multiple: false,
-    disabled: disabled, // 부모로부터 받은 disabled 상태 사용
+    disabled: disabled, 
   });
 
   if (!dropzoneResult || typeof dropzoneResult.getRootProps !== 'function') {
-    console.error("[FileUploadZone] Error: useDropzone did not return a valid getRootProps function.");
+    console.error("[FileUploadZone] 오류: useDropzone이 유효한 getRootProps 함수를 반환하지 않음.");
     return (
       <div className="flex flex-col items-center justify-center w-full h-[185px] border-2 border-dashed rounded-lg border-destructive bg-destructive/10 p-4">
         <AlertTriangle className="w-10 h-10 mb-3 text-destructive" />
-        <p className="text-sm font-semibold text-destructive">Dropzone Initialization Error</p>
-        <p className="text-xs text-destructive text-center mt-1">Could not initialize the file upload area. Please try refreshing the page.</p>
+        <p className="text-sm font-semibold text-destructive">드롭존 초기화 오류</p>
+        <p className="text-xs text-destructive text-center mt-1">파일 업로드 영역을 초기화할 수 없습니다. 페이지를 새로고침해 주세요.</p>
       </div>
     );
   }
@@ -108,34 +116,29 @@ export function FileUploadZone({ onFileAccepted, disabled = false }: FileUploadZ
       className={cn(
         "flex flex-col items-center justify-center w-full h-[185px] border-2 border-dashed rounded-lg cursor-pointer transition-colors",
         isDragActive ? "border-primary bg-primary/10" : "border-border hover:border-primary/70",
-        disabled ? "cursor-default opacity-70 bg-muted/50 !border-muted" : "" // 전역 disabled 시 스타일 명확화
+        disabled ? "cursor-default opacity-70 bg-muted/50 !border-muted" : "" 
       )}
     >
       <input {...getInputProps()} />
-      {disabled ? ( // 전역 isProcessing (부모로부터 받은 disabled) 상태일 때
+      {disabled ? ( 
         <>
           <Loader2 className="w-10 h-10 mb-3 text-primary animate-spin" />
-          <p className="text-sm text-primary">Processing file...</p> 
+          <p className="text-sm text-primary">파일 처리 중...</p> 
         </>
       ) : (
         <>
           <UploadCloud className={cn("w-10 h-10 mb-3", isDragActive ? "text-primary" : "text-muted-foreground")} />
           {isDragActive ? (
-            <p className="text-lg font-semibold text-primary">Drop the file here ...</p>
+            <p className="text-lg font-semibold text-primary">여기에 파일을 드롭하세요...</p>
           ) : (
             <>
               <p className="mb-2 text-sm text-muted-foreground">
-                <span className="font-semibold text-primary">Click to upload</span> or drag and drop
+                <span className="font-semibold text-primary">클릭하여 업로드</span> 또는 드래그 앤 드롭하세요
               </p>
-              <p className="text-xs text-muted-foreground">XLSX, XLS, or CSV (MAX. {MAX_FILE_SIZE_MB}MB)</p>
+              <p className="text-xs text-muted-foreground">XLSX, XLS, 또는 CSV (최대 {MAX_FILE_SIZE_MB}MB)</p>
             </>
           )}
         </>
-      )}
-      {internalError && !disabled && ( // 내부 드롭존 오류 메시지 (전역 처리 중이 아닐 때만 표시)
-        <div className="mt-2 text-xs text-destructive flex items-center gap-1">
-            <AlertTriangle className="h-3 w-3"/> {internalError}
-        </div>
       )}
     </div>
   );

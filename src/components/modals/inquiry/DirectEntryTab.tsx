@@ -1,9 +1,3 @@
-// 이전 파일 내용이 여기에 와야 합니다.
-// 현재로서는 파일 내용이 없으므로,
-// 파일 확장자 변경이 문제였다고 가정하고,
-// 기존 DirectEntryTab.tsx의 내용을 그대로 유지한다고 가정합니다.
-// 실제 파일 내용을 확인해야 정확한 복구가 가능합니다.
-
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from 'react';
@@ -137,7 +131,6 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
   }, [gridData, pushStateToHistory]);
 
   const getNormalizedSelection = useCallback((): SelectionRange | null => {
-    // Use dragStateRef.current to get the latest start/end cells for normalization
     const currentStartCell = dragStateRef.current.startCell;
     const currentEndCell = dragStateRef.current.endCell;
 
@@ -153,21 +146,20 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
         c: Math.max(currentStartCell.c, currentEndCell.c),
       },
     };
-  }, []); // No dependencies as it uses dragStateRef
+  }, []); 
 
   const handleCellPointerDown = useCallback((r: number, c: number, event: React.PointerEvent<HTMLElement>) => {
     // Allow focus on input and default text selection inside input
     if ((event.target as HTMLElement).tagName === 'INPUT') {
-        if (dragStateRef.current.isSelecting) { // If already selecting a range, and click inside input
+        if (dragStateRef.current.isSelecting) { 
              setDragState(prev => ({ ...prev, isSelecting: false, pointerId: null }));
         }
         return; 
     }
     
-    event.preventDefault(); // Prevent text selection on td, focus changes, etc.
+    event.preventDefault(); 
     
     const target = event.currentTarget as HTMLElement;
-    // Attempt to set pointer capture. If it fails (e.g. element not visible), it's fine.
     try { target.setPointerCapture(event.pointerId); } catch (e) {}
 
     setDragState({
@@ -176,7 +168,7 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
       endCell: { r, c },
       pointerId: event.pointerId,
     });
-  }, []); // Removed dragState.isSelecting from deps
+  }, []);
 
   const handleCellPointerMove = useCallback((r: number, c: number, event: React.PointerEvent<HTMLElement>) => {
     const currentDragState = dragStateRef.current;
@@ -195,14 +187,12 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
     const currentDragState = dragStateRef.current;
     
     if (currentDragState.isSelecting && currentDragState.pointerId === event.pointerId) {
-      // Attempt to release pointer capture.
       try { (event.target as HTMLElement).releasePointerCapture(event.pointerId); } catch (e) {}
 
-      // Keep selection visible, but mark as not actively dragging with this pointer
       setDragState(prev => ({
         ...prev,
-        isSelecting: true, // Keep selection highlight
-        pointerId: null,   // No longer actively dragging with this pointer
+        isSelecting: true, 
+        pointerId: null,  
       }));
     }
   }, []); 
@@ -241,7 +231,6 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
         }
       } else if ((event.key === 'Delete' || event.key === 'Backspace')) {
         const selection = getNormalizedSelection();
-        // Use dragStateRef.current.isSelecting because dragState (state variable) might be stale here
         if (selection && !isInputFocused && dragStateRef.current.isSelecting) { 
           event.preventDefault();
           let changed = false;
@@ -264,9 +253,8 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
             setGridData(newGridData);
             pushStateToHistory(newGridData);
           }
-          // After deleting, reset selection state
            setDragState({
-            isSelecting: false, // Explicitly turn off selection highlight after delete
+            isSelecting: false, 
             startCell: null,
             endCell: null,
             pointerId: null,
@@ -283,7 +271,6 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
 
   const isCellSelected = useCallback((r: number, c: number): boolean => {
     const selection = getNormalizedSelection(); 
-    // For styling, use the actual dragState for current render cycle for isSelecting flag
     if (!selection || !dragState.isSelecting) return false; 
     
     return r >= selection.start.r && r <= selection.end.r &&
@@ -298,25 +285,24 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
     if (currentGridIsNotEmpty) {
       setGridData(emptyGrid);
       pushStateToHistory(emptyGrid);
-    } else if (history.length > 1 || currentHistoryIndex !== 0) { // If grid is empty but history exists
+    } else if (history.length > 1 || currentHistoryIndex !== 0) { 
       setGridData(emptyGrid);
       setHistory([emptyGrid.map(row => [...row])]);
       setCurrentHistoryIndex(0);
     }
     
-    setDragState({ // Reset selection state
+    setDragState({ 
       isSelecting: false,
       startCell: null,
       endCell: null,
       pointerId: null,
     });
 
-    // Focus first input if table is rendered
     if (tableRef.current) {
       const firstInput = tableRef.current.querySelector<HTMLInputElement>('input[data-row="0"][data-col="0"]');
       firstInput?.focus();
     }
-  }, [gridData, history.length, currentHistoryIndex, pushStateToHistory]); // Added gridData and other relevant deps
+  }, [gridData, history.length, currentHistoryIndex, pushStateToHistory]); 
 
 
   return (
@@ -330,7 +316,7 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
             onClick={handleInitializeGrid}
           >
             <RotateCcw className="mr-2 h-4 w-4" />
-            Initialize Grid
+            그리드 초기화
           </Button>
         </div>
       </div>
@@ -341,7 +327,7 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
             ref={tableRef} 
             className="min-w-full divide-y divide-border text-sm"
             style={{ 
-              userSelect: dragState.isSelecting ? 'none' : 'auto', // Prevent text selection during drag
+              userSelect: dragState.isSelecting ? 'none' : 'auto', 
             }}
           >
             <thead className="bg-muted/50 sticky top-0 z-10">
@@ -369,12 +355,12 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
                     <td 
                       key={`cell-${rowIndex}-${colIndex}`} 
                       className={cn(
-                        "p-0 relative", // Ensure no padding on td
-                        isCellSelected(rowIndex, colIndex) && "bg-primary/30" // Apply selection style to td
+                        "p-0 relative", 
+                        isCellSelected(rowIndex, colIndex) && "bg-primary/30" 
                       )}
                       onPointerDown={(e) => handleCellPointerDown(rowIndex, colIndex, e)}
                       onPointerMove={(e) => handleCellPointerMove(rowIndex, colIndex, e)}
-                      style={{ touchAction: 'none' }} // Prevent default touch actions like scrolling
+                      style={{ touchAction: 'none' }} 
                     >
                       <Input
                         type="text"
@@ -382,18 +368,17 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
                         onChange={(e) => handleInputChange(rowIndex, colIndex, e)}
                         onPaste={(e) => handlePaste(rowIndex, colIndex, e)}
                         onPointerDown={(e) => {
-                            // Stop propagation to prevent td's onPointerDown when clicking inside input
                             e.stopPropagation(); 
                         }}
                         className={cn(
                           "w-full h-full px-2 py-1.5 rounded-none focus:ring-1 focus:ring-primary focus:z-30 focus:relative focus:shadow-md",
-                          "border-2 border-transparent" // Keep border transparent for layout consistency
+                          "border-2 border-transparent" 
                         )}
-                        aria-label={`${customColumnHeaders[colIndex]}, row ${rowIndex + 1}`}
+                        aria-label={`${customColumnHeaders[colIndex]}, 행 ${rowIndex + 1}`}
                         data-row={rowIndex}
                         data-col={colIndex}
                         ref={(el) => {
-                          if (inputRefs.current) { // Check if inputRefs.current is not null
+                          if (inputRefs.current) { 
                             inputRefs.current[`${rowIndex}-${colIndex}`] = el;
                           }
                         }}

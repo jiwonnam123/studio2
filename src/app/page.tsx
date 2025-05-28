@@ -22,7 +22,7 @@ export default function HomePage() {
   return (
     <div className="flex h-screen items-center justify-center bg-background">
       <Loader2 className="h-12 w-12 animate-spin text-primary" />
-      <p className="ml-4 text-lg text-foreground">Loading FormFlow...</p>
+      <p className="ml-4 text-lg text-foreground">애드팝콘 문의 시스템 로딩 중...</p>
     </div>
   );
 }

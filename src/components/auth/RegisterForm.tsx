@@ -43,29 +43,28 @@ export function RegisterForm() {
     try {
       await register(data.email, data.name, data.password); 
       toast({
-        title: "Registration Successful",
-        description: "Your account has been created. You are now logged in.",
+        title: "회원가입 성공",
+        description: "계정이 생성되었습니다. 지금 로그인되었습니다.",
       });
-       // Navigation is handled by AuthContext or AppLayout after successful Firebase registration
     } catch (error: any) {
-      let errorMessage = "An unexpected error occurred.";
+      let errorMessage = "예상치 못한 오류가 발생했습니다.";
        if (error.code) {
         switch (error.code) {
           case 'auth/email-already-in-use':
-            errorMessage = "This email address is already in use.";
+            errorMessage = "이미 사용 중인 이메일 주소입니다.";
             break;
           case 'auth/invalid-email':
-            errorMessage = "Invalid email format.";
+            errorMessage = "잘못된 이메일 형식입니다.";
             break;
           case 'auth/weak-password':
-            errorMessage = "Password is too weak. Please choose a stronger password.";
+            errorMessage = "비밀번호가 너무 약합니다. 더 강력한 비밀번호를 선택하세요.";
             break;
           default:
-            errorMessage = error.message || "Registration failed. Please try again.";
+            errorMessage = error.message || "회원가입에 실패했습니다. 다시 시도해 주세요.";
         }
       }
       toast({
-        title: "Registration Failed",
+        title: "회원가입 실패",
         description: errorMessage,
         variant: "destructive",
       });
@@ -77,9 +76,9 @@ export function RegisterForm() {
   return (
     <Card className="w-full max-w-sm shadow-xl">
       <CardHeader>
-        <CardTitle className="text-2xl">Sign Up</CardTitle>
+        <CardTitle className="text-2xl">회원가입</CardTitle>
         <CardDescription>
-          Create an account to start building forms.
+          계정을 만들어 문의를 제출하세요.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -90,9 +89,9 @@ export function RegisterForm() {
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>이름</FormLabel>
                   <FormControl>
-                    <Input placeholder="Your Name" {...field} />
+                    <Input placeholder="이름을 입력하세요" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -103,7 +102,7 @@ export function RegisterForm() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>이메일</FormLabel>
                   <FormControl>
                     <Input placeholder="name@example.com" {...field} />
                   </FormControl>
@@ -116,7 +115,7 @@ export function RegisterForm() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>비밀번호</FormLabel>
                   <FormControl>
                     <Input type="password" placeholder="••••••••" {...field} />
                   </FormControl>
@@ -129,7 +128,7 @@ export function RegisterForm() {
               name="confirmPassword"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Confirm Password</FormLabel>
+                  <FormLabel>비밀번호 확인</FormLabel>
                   <FormControl>
                     <Input type="password" placeholder="••••••••" {...field} />
                   </FormControl>
@@ -139,16 +138,16 @@ export function RegisterForm() {
             />
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Account
+              계정 만들기
             </Button>
           </form>
         </Form>
       </CardContent>
       <CardFooter>
         <div className="text-center text-sm">
-          Already have an account?{" "}
+          이미 계정이 있으신가요?{" "}
           <Link href="/login" className="underline text-primary hover:text-primary/80">
-            Log in
+            로그인
           </Link>
         </div>
       </CardFooter>

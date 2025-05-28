@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'FormFlow',
-  description: 'Create and manage forms with ease, powered by AI.',
+  title: '애드팝콘 문의 시스템',
+  description: 'AI 기반으로 손쉽게 문의를 생성하고 관리하세요.',
 };
 
 export default function RootLayout({
@@ -25,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="ko">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <AuthProvider>
           {children}

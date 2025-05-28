@@ -26,15 +26,15 @@ export function UserNav() {
       <DropdownMenuTrigger asChild>
         <Button 
           variant="ghost" 
-          className="relative h-10 w-10 rounded-full p-0 flex items-center justify-center hover:bg-accent/70" // Reverted button size and hover
+          className="relative h-10 w-10 rounded-full p-0 flex items-center justify-center hover:bg-accent/70"
         >
-          <UserCircleIcon className="!h-9 !w-9 text-muted-foreground" /> {/* Reverted icon size and added !important */}
+          <UserCircleIcon className="!h-9 !w-9 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">{user.name || (user.email ? user.email.split('@')[0] : 'User')}</p>
+            <p className="text-sm font-medium leading-none">{user.name || (user.email ? user.email.split('@')[0] : '사용자')}</p>
             {user.email && (
               <p className="text-xs leading-none text-muted-foreground">
                 {user.email}
@@ -45,7 +45,7 @@ export function UserNav() {
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={logout}>
           <LogOut className="mr-2 h-4 w-4" />
-          <span>Log out</span>
+          <span>로그아웃</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -55,31 +55,30 @@ export function LoginForm() {
     try {
       await login(data.email, data.password);
       toast({
-        title: "Login Successful",
-        description: "Welcome back!",
+        title: "로그인 성공",
+        description: "다시 오신 것을 환영합니다!",
       });
-      // router.push('/dashboard'); // Removed, navigation handled by AuthContext listener
     } catch (error: any) {
-      let errorMessage = "An unexpected error occurred.";
+      let errorMessage = "예상치 못한 오류가 발생했습니다.";
       if (error.code) {
         switch (error.code) {
           case 'auth/user-not-found':
           case 'auth/wrong-password':
           case 'auth/invalid-credential':
-            errorMessage = "Invalid email or password.";
+            errorMessage = "잘못된 이메일 또는 비밀번호입니다.";
             break;
           case 'auth/invalid-email':
-            errorMessage = "Invalid email format.";
+            errorMessage = "잘못된 이메일 형식입니다.";
             break;
           case 'auth/user-disabled':
-            errorMessage = "This account has been disabled.";
+            errorMessage = "이 계정은 비활성화되었습니다.";
             break;
           default:
-            errorMessage = error.message || "Login failed. Please try again.";
+            errorMessage = error.message || "로그인에 실패했습니다. 다시 시도해 주세요.";
         }
       }
       toast({
-        title: "Login Failed",
+        title: "로그인 실패",
         description: errorMessage,
         variant: "destructive",
       });
@@ -93,38 +92,37 @@ export function LoginForm() {
     try {
       await loginWithGoogle();
       toast({
-        title: "Google Login Successful",
-        description: "Welcome!",
+        title: "Google 로그인 성공",
+        description: "환영합니다!",
       });
-      // router.push('/dashboard'); // Removed, navigation handled by AuthContext listener
     } catch (error: any) {
-      let errorMessage = "Google login failed. Please try again.";
+      let errorMessage = "Google 로그인에 실패했습니다. 다시 시도해 주세요.";
       if (error.code) {
         switch (error.code) {
           case 'auth/popup-closed-by-user':
-            errorMessage = "Login cancelled. The Google sign-in popup was closed. This may be due to browser security policies, popup blockers, or third-party cookie restrictions. Please check your browser settings and try again.";
+            errorMessage = "로그인이 취소되었습니다. Google 로그인 팝업이 닫혔습니다. 이는 브라우저 보안 정책, 팝업 차단기 또는 타사 쿠키 제한 때문일 수 있습니다. 브라우저 설정을 확인하고 다시 시도해 주세요.";
             break;
           case 'auth/cancelled-popup-request':
-             errorMessage = "Login cancelled. This might happen if multiple popups were opened or due to browser security settings (like popup or third-party cookie restrictions, or Cross-Origin-Opener-Policy). Please try again, ensuring only one login attempt is active.";
+             errorMessage = "로그인이 취소되었습니다. 여러 팝업이 열렸거나 브라우저 보안 설정(팝업 또는 타사 쿠키 제한, Cross-Origin-Opener-Policy 등) 때문일 수 있습니다. 하나의 로그인 시도만 활성화되어 있는지 확인하고 다시 시도해 주세요.";
             break;
           case 'auth/popup-blocked-by-browser':
-            errorMessage = "Login failed. Please enable popups for this site to sign in with Google.";
+            errorMessage = "로그인 실패. Google로 로그인하려면 이 사이트에 대한 팝업을 활성화하세요.";
             break;
           case 'auth/account-exists-with-different-credential':
-            errorMessage = "An account already exists with this email but used a different sign-in method. Try that method, or use a different Google account.";
+            errorMessage = "이 이메일로 이미 계정이 있지만 다른 로그인 방법을 사용했습니다. 해당 방법을 시도하거나 다른 Google 계정을 사용하세요.";
             break;
           case 'auth/unauthorized-domain':
-            errorMessage = "Login failed. This website's domain is not authorized for Google Sign-In. Please contact the site administrator or check Firebase project settings if you are the developer.";
+            errorMessage = "로그인 실패. 이 웹사이트의 도메인은 Google 로그인이 승인되지 않았습니다. 사이트 관리자에게 문의하거나 개발자인 경우 Firebase 프로젝트 설정을 확인하세요.";
             break;
           case 'auth/operation-not-allowed':
-             errorMessage = "Google Sign-In is not enabled for this Firebase project. Please enable it in the Firebase console.";
+             errorMessage = "이 Firebase 프로젝트에 Google 로그인이 활성화되어 있지 않습니다. Firebase 콘솔에서 활성화해주세요.";
             break;
           default:
-            errorMessage = error.message || "Google login failed. Please try again.";
+            errorMessage = error.message || "Google 로그인에 실패했습니다. 다시 시도해 주세요.";
         }
       }
       toast({
-        title: "Google Login Failed",
+        title: "Google 로그인 실패",
         description: errorMessage,
         variant: "destructive",
       });
@@ -136,9 +134,9 @@ export function LoginForm() {
   return (
     <Card className="w-full max-w-sm shadow-xl">
       <CardHeader>
-        <CardTitle className="text-2xl">Login</CardTitle>
+        <CardTitle className="text-2xl">로그인</CardTitle>
         <CardDescription>
-          Enter your email below to login to your account or use Google.
+          계정에 로그인하거나 Google을 사용하려면 아래에 이메일을 입력하세요.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -149,7 +147,7 @@ export function LoginForm() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>이메일</FormLabel>
                   <FormControl>
                     <Input placeholder="m@example.com" {...field} autoComplete="email" disabled={isSubmitting || isGoogleSubmitting} />
                   </FormControl>
@@ -162,7 +160,7 @@ export function LoginForm() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>비밀번호</FormLabel>
                   <FormControl>
                     <Input type="password" placeholder="••••••••" {...field} autoComplete="current-password" disabled={isSubmitting || isGoogleSubmitting}/>
                   </FormControl>
@@ -172,27 +170,27 @@ export function LoginForm() {
             />
             <Button type="submit" className="w-full" disabled={isSubmitting || isGoogleSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Login
+              로그인
             </Button>
           </form>
         </Form>
         <div className="relative my-4">
           <Separator className="absolute left-0 top-1/2 -translate-y-1/2 w-full" />
           <span className="relative bg-card px-2 text-sm text-muted-foreground flex justify-center">
-            OR
+            또는
           </span>
         </div>
         <Button variant="outline" className="w-full" onClick={handleGoogleLogin} disabled={isSubmitting || isGoogleSubmitting}>
           {isGoogleSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           <GoogleIcon />
-          Login with Google
+          Google로 로그인
         </Button>
       </CardContent>
       <CardFooter className="flex-col items-start">
         <div className="mt-4 text-center text-sm w-full">
-          Don&apos;t have an account?{" "}
+          계정이 없으신가요?{" "}
           <Link href="/register" className="underline text-primary hover:text-primary/80">
-            Sign up
+            회원가입
           </Link>
         </div>
       </CardFooter>
