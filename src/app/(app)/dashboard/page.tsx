@@ -13,24 +13,25 @@ import { InquiryModal } from '@/components/modals/inquiry/InquiryModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { firestore } from '@/lib/firebase';
 import { collection, query, where, orderBy, onSnapshot, Timestamp, doc, updateDoc, writeBatch, getDoc, type DocumentData } from 'firebase/firestore';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const ADMIN_EMAIL = 'jirrral@gmail.com';
+// 처리 상태 옵션을 한국어로 정의합니다.
 const STATUS_OPTIONS = ["처리 전", "처리 중", "보류 중", "처리 완료", "종료됨", "정보 필요"];
 const ITEMS_PER_PAGE = 20;
 
 interface FlattenedDataRow extends SubmittedInquiryDataRow {
-  key: string; 
+  key: string;
   originalInquiryId: string;
   originalInquirySubmittedAt: string;
-  originalDataRowIndex: number; 
-  userId?: string; // 관리자 뷰에서 사용
-  source?: 'excel' | 'direct'; // 관리자 뷰에서 사용
-  fileName?: string; // 관리자 뷰에서 사용
+  originalDataRowIndex: number;
+  userId?: string;
+  source?: 'excel' | 'direct';
+  fileName?: string;
 }
 
 export default function DashboardPage() {
@@ -64,10 +65,8 @@ export default function DashboardPage() {
     let q;
 
     if (isAdmin) {
-      console.log("[대시보드] 관리자 사용자 감지. 모든 문의를 가져옵니다.");
       q = query(inquiriesRef, orderBy("submittedAt", "desc"));
     } else {
-      console.log("[대시보드] 일반 사용자 감지. 사용자별 문의를 가져옵니다. userId:", user.id);
       q = query(
         inquiriesRef,
         where("userId", "==", user.id),
@@ -76,7 +75,6 @@ export default function DashboardPage() {
     }
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      console.log(`[대시보드] onSnapshot 트리거됨. ${querySnapshot.docs.length}개 문서 발견.`);
       const fetchedInquiries = querySnapshot.docs.map(docSnapshot => {
         const data = docSnapshot.data() as DocumentData;
         let submittedAtStr = '';
@@ -87,8 +85,7 @@ export default function DashboardPage() {
         } else if (data.submittedAt && typeof data.submittedAt.toDate === 'function') {
            submittedAtStr = data.submittedAt.toDate().toISOString();
         } else {
-            console.warn(`[대시보드] 문서 ${docSnapshot.id}에 유효하지 않은 submittedAt이 있습니다:`, data.submittedAt);
-            submittedAtStr = new Date(0).toISOString(); 
+            submittedAtStr = new Date(0).toISOString();
         }
 
         const processedDataArray = (Array.isArray(data.data) ? data.data : []).map((item: Partial<SubmittedInquiryDataRow>) => ({
@@ -98,12 +95,12 @@ export default function DashboardPage() {
             userName: item.userName || '',
             contact: item.contact || '',
             remarks: item.remarks || '',
-            status: item.status || "처리 전", 
+            status: item.status || "처리 전", // 기본 상태를 한국어로 설정
             adminNotes: item.adminNotes || '',
         }));
 
         return {
-          id: docSnapshot.id, 
+          id: docSnapshot.id,
           userId: data.userId,
           source: data.source,
           fileName: data.fileName,
@@ -113,19 +110,16 @@ export default function DashboardPage() {
       });
       setSubmittedInquiries(fetchedInquiries);
       setIsLoadingInquiries(false);
-      setCurrentPage(1); 
+      setCurrentPage(1);
       setSelectedRows(new Map());
     }, (error) => {
-      console.error("[대시보드] 문의 가져오기 오류: ", error);
+      console.error("문의 내역 가져오기 오류: ", error);
       toast({ title: "오류", description: "제출된 문의를 가져올 수 없습니다.", variant: "destructive" });
       setIsLoadingInquiries(false);
     });
 
-    return () => {
-      console.log("[대시보드] 문의 스냅샷 리스너 구독 취소 중.");
-      unsubscribe();
-    };
-  }, [user?.id, isAdmin, toast]); 
+    return () => unsubscribe();
+  }, [user?.id, isAdmin, toast]);
 
   const flattenedDataRows: FlattenedDataRow[] = useMemo(() => {
     return submittedInquiries.flatMap((inquiry) =>
@@ -135,9 +129,9 @@ export default function DashboardPage() {
         originalInquiryId: inquiry.id,
         originalInquirySubmittedAt: inquiry.submittedAt,
         originalDataRowIndex: dataRowIndex,
-        userId: isAdmin ? inquiry.userId : undefined, // 관리자만 userId 표시
-        source: isAdmin ? inquiry.source : undefined, // 관리자만 source 표시
-        fileName: isAdmin ? inquiry.fileName : undefined, // 관리자만 fileName 표시
+        userId: isAdmin ? inquiry.userId : undefined,
+        source: isAdmin ? inquiry.source : undefined,
+        fileName: isAdmin ? inquiry.fileName : undefined,
       }))
     );
   }, [submittedInquiries, isAdmin]);
@@ -191,7 +185,7 @@ export default function DashboardPage() {
         toast({ title: "오류", description: "상태를 업데이트할 수 없습니다.", variant: "destructive" });
     }
   };
-  
+
   const handleRowSelectionChange = (row: FlattenedDataRow, checked: boolean | 'indeterminate') => {
     setSelectedRows(prev => {
       const newSelectedRows = new Map(prev);
@@ -237,24 +231,24 @@ export default function DashboardPage() {
     for (const row of selectedRows.values()) {
       if (!updatesByInquiryId.has(row.originalInquiryId)) {
         const inquiryRef = doc(firestore, "inquiries", row.originalInquiryId);
-        const docSnap = await getDoc(inquiryRef); 
+        const docSnap = await getDoc(inquiryRef);
         if (docSnap.exists()) {
            updatesByInquiryId.set(row.originalInquiryId, {
             inquiryRef,
-            updatedDataArray: [...(docSnap.data()?.data as SubmittedInquiryDataRow[] || [])] 
+            updatedDataArray: [...(docSnap.data()?.data as SubmittedInquiryDataRow[] || [])]
           });
         } else {
-          console.warn(`문서 ${row.originalInquiryId}을(를) 찾을 수 없어 행 ${row.key}의 일괄 업데이트를 건너<0xEB><08><0x81>니다.`);
-          continue; 
+          console.warn(`문서 ${row.originalInquiryId}을(를) 찾을 수 없어 행 ${row.key}의 일괄 업데이트를 건너뜁니다.`);
+          continue;
         }
       }
-      
+
       const inquiryUpdate = updatesByInquiryId.get(row.originalInquiryId);
       if (inquiryUpdate && inquiryUpdate.updatedDataArray[row.originalDataRowIndex]) {
         inquiryUpdate.updatedDataArray[row.originalDataRowIndex].status = bulkStatus;
       }
     }
-    
+
     updatesByInquiryId.forEach(({ inquiryRef, updatedDataArray }) => {
       batch.update(inquiryRef, { data: updatedDataArray });
     });
@@ -262,8 +256,8 @@ export default function DashboardPage() {
     try {
       await batch.commit();
       toast({ title: "일괄 상태 업데이트 성공", description: `${selectedRows.size}개 항목이 ${bulkStatus}(으)로 업데이트되었습니다.` });
-      setSelectedRows(new Map()); 
-      setBulkStatus(''); 
+      setSelectedRows(new Map());
+      setBulkStatus('');
     } catch (error) {
       console.error("일괄 상태 업데이트 오류:", error);
       toast({ title: "일괄 업데이트 실패", description: "선택된 모든 항목을 업데이트할 수 없었습니다.", variant: "destructive" });
@@ -279,7 +273,7 @@ export default function DashboardPage() {
   const handlePreviousPage = () => {
     setCurrentPage((prev) => Math.max(prev - 1, 1));
   };
-  
+
   if (!mounted) {
     return (
        <div className="space-y-8 p-4 md:p-6">
@@ -296,34 +290,44 @@ export default function DashboardPage() {
     );
   }
 
+  // renderStatusBadge는 한국어 상태 문자열을 직접 처리합니다.
   const renderStatusBadge = (status: string) => {
     let variant: "default" | "secondary" | "destructive" | "outline" = "outline";
     let icon = <Clock className="mr-1 h-3 w-3" />;
 
-    switch (status?.toLowerCase()) {
+    switch (status?.toLowerCase()) { // DB에 영문 상태가 있을 경우를 대비해 toLowerCase() 사용
       case "처리 전":
+      case "pending":
         variant = "outline";
         icon = <Clock className="mr-1 h-3 w-3 text-yellow-500" />;
         break;
       case "처리 중":
+      case "in progress":
         variant = "secondary";
         icon = <Loader2 className="mr-1 h-3 w-3 animate-spin text-blue-500" />;
         break;
       case "처리 완료":
+      case "resolved":
+        variant = "default";
+        icon = <CheckCircle className="mr-1 h-3 w-3 text-green-500" />;
+        break;
       case "종료됨":
-        variant = "default"; 
+      case "closed":
+        variant = "default";
         icon = <CheckCircle className="mr-1 h-3 w-3 text-green-500" />;
         break;
       case "보류 중":
+      case "hold":
         variant = "outline";
         icon = <Clock className="mr-1 h-3 w-3 text-orange-500" />;
         break;
       case "정보 필요":
+      case "info needed":
          variant = "destructive";
          icon = <XCircle className="mr-1 h-3 w-3 text-red-500" />;
         break;
       default:
-        variant = "secondary"; 
+        variant = "secondary";
         icon = <ListChecks className="mr-1 h-3 w-3 text-muted-foreground" />
     }
     return <Badge variant={variant} className="capitalize text-xs py-0.5 px-1.5 flex items-center w-fit">{icon} {status || 'N/A'}</Badge>;
@@ -366,8 +370,8 @@ export default function DashboardPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <Button 
-                onClick={handleBulkStatusUpdate} 
+              <Button
+                onClick={handleBulkStatusUpdate}
                 disabled={isBulkUpdating || selectedRows.size === 0 || !bulkStatus}
                 size="sm"
                 className="w-full sm:w-auto"
@@ -453,7 +457,7 @@ export default function DashboardPage() {
                               <DropdownMenuContent align="end">
                                   <DropdownMenuLabel>상태 업데이트</DropdownMenuLabel>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuRadioGroup 
+                                  <DropdownMenuRadioGroup
                                       value={row.status}
                                       onValueChange={(newStatus) => handleIndividualStatusChange(row.originalInquiryId, row.originalDataRowIndex, newStatus)}
                                   >
@@ -503,3 +507,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
