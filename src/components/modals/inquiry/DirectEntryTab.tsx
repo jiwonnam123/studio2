@@ -70,9 +70,10 @@ export function DirectEntryTab() {
     const newGridData = gridData.map((row, rIdx) =>
       rIdx === rowIndex
         ? row.map((cell, cIdx) => (cIdx === colIndex ? value : cell))
-        : [...row] // Ensure row is a new array
+        : [...row] 
     );
     setGridDataInternal(newGridData);
+    // Only push to history if the content actually changed from the last saved history state
     if (JSON.stringify(newGridData) !== JSON.stringify(history[currentHistoryIndex])) {
         pushStateToHistory(newGridData);
     }
@@ -105,6 +106,11 @@ export function DirectEntryTab() {
     pushStateToHistory(currentActiveGridData);
   }, [gridData, pushStateToHistory]);
 
+  // Moved handleDocumentMouseUp before handleCellMouseDown
+  const handleDocumentMouseUp = useCallback(() => {
+    setIsSelecting(false);
+  }, [setIsSelecting]);
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
@@ -112,13 +118,16 @@ export function DirectEntryTab() {
       const isCtrlY = (event.ctrlKey || (isMac && event.metaKey)) && event.key.toLowerCase() === 'y';
       const isCtrlShiftZ = (event.ctrlKey || (isMac && event.metaKey)) && event.shiftKey && event.key.toLowerCase() === 'z';
 
+      // Check if the event target is an input/textarea within our grid table
+      let isGridInputFocused = false;
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-        if(tableRef.current && tableRef.current.contains(event.target as Node)) {
-           // Grid input, proceed
-        } else {
-            return; // Not our input, let browser handle
-        }
+          if(tableRef.current && tableRef.current.contains(event.target as Node)) {
+             isGridInputFocused = true;
+          }
       }
+      // Allow undo/redo even if focus is not directly on an input, but modal is active.
+      // For simplicity, this global listener will attempt undo/redo.
+      // More precise focus management might be needed in a complex app.
 
       if (isCtrlZ) {
         event.preventDefault();
@@ -143,28 +152,22 @@ export function DirectEntryTab() {
     };
   }, [history, currentHistoryIndex]);
 
-  // Moved handleDocumentMouseUp before handleCellMouseDown
-  const handleDocumentMouseUp = useCallback(() => {
-    setIsSelecting(false);
-    // No need to remove listener if { once: true } is used for document.addEventListener
-  }, [setIsSelecting]);
 
   const handleCellMouseDown = useCallback((r: number, c: number) => {
     setIsSelecting(true);
     setSelectionStartCell({ r, c });
-    setSelectionEndCell({ r, c }); // Start selection with a single cell
-    // Add mouseup listener to the document to capture mouse release outside the table
+    setSelectionEndCell({ r, c }); 
     document.addEventListener('mouseup', handleDocumentMouseUp, { once: true });
-  }, [handleDocumentMouseUp, setIsSelecting, setSelectionStartCell, setSelectionEndCell]);
+  }, [handleDocumentMouseUp]);
   
   const handleCellMouseEnter = useCallback((r: number, c: number) => {
     if (isSelecting) {
       setSelectionEndCell({ r, c });
     }
-  }, [isSelecting, setSelectionEndCell]);
+  }, [isSelecting]);
 
 
-  const getNormalizedSelection = (): SelectionRange | null => {
+  const getNormalizedSelection = useCallback((): SelectionRange | null => {
     if (!selectionStartCell || !selectionEndCell) return null;
     return {
       start: {
@@ -176,7 +179,7 @@ export function DirectEntryTab() {
         c: Math.max(selectionStartCell.c, selectionEndCell.c),
       },
     };
-  };
+  }, [selectionStartCell, selectionEndCell]);
 
   const isCellSelected = (r: number, c: number): boolean => {
     const selection = getNormalizedSelection();
@@ -185,50 +188,57 @@ export function DirectEntryTab() {
            c >= selection.start.c && c <= selection.end.c;
   };
 
-  const handleClearSelected = () => {
+  const handleClearSelected = useCallback(() => {
     const selection = getNormalizedSelection();
     if (!selection) return;
 
+    let changed = false;
     const newGridData = gridData.map((row, rIdx) => {
       if (rIdx >= selection.start.r && rIdx <= selection.end.r) {
         return row.map((cell, cIdx) => {
           if (cIdx >= selection.start.c && cIdx <= selection.end.c) {
-            return '';
+            if (cell !== '') {
+              changed = true;
+              return '';
+            }
           }
           return cell;
         });
       }
       return [...row]; 
     });
-    setGridDataInternal(newGridData);
-    pushStateToHistory(newGridData);
+
+    if (changed) {
+      setGridDataInternal(newGridData);
+      pushStateToHistory(newGridData);
+    }
     setSelectionStartCell(null);
     setSelectionEndCell(null);
-  };
+  }, [gridData, getNormalizedSelection, pushStateToHistory, setGridDataInternal, setSelectionStartCell, setSelectionEndCell]);
   
-  const handleInitializeGrid = () => {
+  const handleInitializeGrid = useCallback(() => {
     const emptyGrid = initialGridData();
     setGridDataInternal(emptyGrid);
-    setHistory([emptyGrid.map(row => [...row])]); 
-    setCurrentHistoryIndex(0);
+    // Check if current grid is already empty to avoid redundant history
+    if(JSON.stringify(gridData) !== JSON.stringify(emptyGrid) || history.length > 1 || currentHistoryIndex !== 0) {
+        setHistory([emptyGrid.map(row => [...row])]); 
+        setCurrentHistoryIndex(0);
+    }
     setSelectionStartCell(null);
     setSelectionEndCell(null);
-  };
+  }, [gridData, history.length, currentHistoryIndex]); // Added dependencies
 
   const columnHeaders = Array(NUM_COLS).fill(null).map((_, i) => getColumnName(i));
 
-  const handleSubmit = () => {
-    console.log("Grid Data to submit:", gridData);
-    // Implement actual submission logic here
-    alert("Direct entry data submitted (simulated). Check console for data.");
-  }
+  // Removed handleSubmit function as the button is removed.
+  // The main modal submit button will handle submission logic.
 
   return (
     <div className="space-y-4 py-2 flex flex-col h-full">
       <div className="flex-shrink-0 space-y-2">
         <p className="text-sm text-muted-foreground">
           Enter your inquiry details directly into the spreadsheet below. Use Tab or Shift+Tab to navigate.
-          Copy/paste from Excel is supported. Use Ctrl+Z to Undo, Ctrl+Y to Redo.
+          Copy/paste from Excel is supported. Use Ctrl+Z to Undo, Ctrl+Y/Ctrl+Shift+Z to Redo.
           Click and drag to select a range of cells.
         </p>
         <div className="flex gap-2">
@@ -258,8 +268,8 @@ export function DirectEntryTab() {
           <table 
             ref={tableRef} 
             className="min-w-full divide-y divide-border text-sm"
-            style={{ userSelect: isSelecting ? 'none' : 'auto' }} // Prevent text selection during drag
-            onMouseLeave={() => { if (isSelecting) { /* setIsSelecting(false); document.removeEventListener('mouseup', handleDocumentMouseUp); */ } }} // Consider if needed
+            style={{ userSelect: isSelecting ? 'none' : 'auto' }} 
+            onMouseLeave={() => { /* No longer clearing selection on mouse leave for button usability */ }}
           >
             <thead className="bg-muted/50 sticky top-0 z-10">
               <tr>
@@ -312,11 +322,7 @@ export function DirectEntryTab() {
         <ScrollBar orientation="horizontal" />
         <ScrollBar orientation="vertical" />
       </ScrollArea>
-      <div className="flex-shrink-0 pt-2">
-        <Button type="button" className="w-full sm:w-auto" onClick={handleSubmit} disabled>
-          Submit Grid Data (WIP)
-        </Button>
-      </div>
+      {/* Removed the "Submit Grid Data (WIP)" button from here */}
     </div>
   );
 }
