@@ -9,7 +9,7 @@ import type { UploadedFile } from '@/types/inquiry';
 import { cn } from '@/lib/utils';
 
 interface FileUploadZoneProps {
-  onFileChange: (file: UploadedFile | null) => void;
+  onFileAccepted: (file: UploadedFile | null) => void;
   disabled?: boolean;
 }
 
@@ -25,103 +25,88 @@ const formatBytes = (bytes: number, decimals = 2) => {
 const acceptFileTypes: Accept = {
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
   'application/vnd.ms-excel': ['.xls'],
+  // CSV는 현재 워커에서 명시적으로 처리하지 않으므로, 필요하다면 워커 로직 수정 및 여기에 추가
+  // 'text/csv': ['.csv'], 
 };
 
-export function FileUploadZone({ onFileChange, disabled = false }: FileUploadZoneProps) {
+export function FileUploadZone({ onFileAccepted, disabled = false }: FileUploadZoneProps) {
   const [isBrieflyProcessing, setIsBrieflyProcessing] = useState(false);
   const [currentFileMetaForDisplay, setCurrentFileMetaForDisplay] = useState<{name: string, size: number} | null>(null);
   const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const onDrop = useCallback((acceptedFiles: File[], fileRejections: any[]) => {
-    console.log("[FileUploadZone] onDrop called. Accepted:", acceptedFiles.length, "Rejected:", fileRejections.length, "Parent Disabled:", disabled);
-    if (disabled) {
-      console.log("[FileUploadZone] Drop ignored because component is disabled by parent.");
-      return;
-    }
-
-    setIsBrieflyProcessing(true);
-    setCurrentFileMetaForDisplay(null);
-
-    if (processingTimeoutRef.current) {
-      clearTimeout(processingTimeoutRef.current);
-    }
-
-    if (fileRejections.length > 0) {
-      const rejection = fileRejections[0];
-      const firstError = rejection.errors[0];
-      let errorMessage = "Invalid file.";
-      if (firstError.code === 'file-too-large') {
-        errorMessage = `File is too large. Max size is ${formatBytes(5 * 1024 * 1024)}.`;
-      } else if (firstError.code === 'file-invalid-type') {
-        errorMessage = "Invalid file type. Please upload .xlsx or .xls files.";
+  const onDrop = useCallback(
+    (acceptedFiles: File[], fileRejections: any[]) => {
+      console.log("[FileUploadZone] onDrop called. Accepted:", acceptedFiles.length, "Rejected:", fileRejections.length, "Parent Disabled:", disabled);
+      if (disabled) {
+        console.log("[FileUploadZone] Drop ignored because component is disabled by parent.");
+        return;
       }
-      const errorFile: UploadedFile = {
-        file: rejection.file,
-        name: rejection.file.name,
-        size: rejection.file.size,
-        type: rejection.file.type,
-        status: 'error',
-        errorMessage: errorMessage,
-      };
-      console.log("[FileUploadZone] Calling onFileChange with error file:", errorFile.name);
-      onFileChange(errorFile);
-      setIsBrieflyProcessing(false);
-      return;
-    }
 
-    if (acceptedFiles.length > 0) {
-      const file = acceptedFiles[0];
-      setCurrentFileMetaForDisplay({ name: file.name, size: file.size });
-      const uploadingFile: UploadedFile = {
-        file,
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        status: 'uploading',
-      };
-      console.log("[FileUploadZone] Calling onFileChange (1) with uploadingFile:", uploadingFile.name, uploadingFile.status);
-      onFileChange(uploadingFile);
+      setIsBrieflyProcessing(true);
+      setCurrentFileMetaForDisplay(null);
 
-      processingTimeoutRef.current = setTimeout(() => {
-        const successFile: UploadedFile = { ...uploadingFile, status: 'success' };
-        console.log("[FileUploadZone] setTimeout: Calling onFileChange (2) with successFile:", successFile.name, successFile.status);
-        onFileChange(successFile);
+      if (processingTimeoutRef.current) {
+        clearTimeout(processingTimeoutRef.current);
+      }
+
+      if (fileRejections.length > 0) {
+        const rejection = fileRejections[0];
+        const firstError = rejection.errors[0];
+        let errorMessage = "Invalid file.";
+        if (firstError.code === 'file-too-large') {
+          errorMessage = `File is too large. Max size is ${formatBytes(5 * 1024 * 1024)}.`;
+        } else if (firstError.code === 'file-invalid-type') {
+          errorMessage = "Invalid file type. Please upload .xlsx or .xls files.";
+        }
+        const errorFile: UploadedFile = {
+          file: rejection.file,
+          name: rejection.file.name,
+          size: rejection.file.size,
+          type: rejection.file.type,
+          status: 'error',
+          errorMessage: errorMessage,
+        };
+        console.log("[FileUploadZone] Calling onFileAccepted with error file:", errorFile.name);
+        onFileAccepted(errorFile); // Use onFileAccepted
         setIsBrieflyProcessing(false);
-      }, 500);
-    } else {
-      console.log("[FileUploadZone] No files accepted or other issue.");
-      onFileChange(null);
-      setIsBrieflyProcessing(false);
-    }
-  }, [onFileChange, disabled]);
+        return;
+      }
 
-  // Call useDropzone and store its result
-  const dropzoneResult = useDropzone({
-    onDrop,
-    accept: acceptFileTypes,
-    maxSize: 5 * 1024 * 1024, // 5MB
-    multiple: false,
-    disabled: disabled || isBrieflyProcessing,
-  });
+      if (acceptedFiles.length > 0) {
+        const file = acceptedFiles[0];
+        setCurrentFileMetaForDisplay({ name: file.name, size: file.size });
+        const uploadingFile: UploadedFile = {
+          file,
+          name: file.name,
+          size: file.size,
+          type: file.type,
+          status: 'uploading',
+        };
+        console.log(
+          '[FileUploadZone] Calling onFileAccepted (1) with uploadingFile:',
+          uploadingFile.name,
+          uploadingFile.status
+        );
+        onFileAccepted(uploadingFile); // Use onFileAccepted
 
-  // Check if useDropzone returned a valid result with getRootProps
-  if (!dropzoneResult || typeof dropzoneResult.getRootProps !== 'function') {
-    console.error("[FileUploadZone] Error: useDropzone did not return a valid getRootProps function. Dropzone result:", dropzoneResult);
-    // Return a fallback UI to prevent crashing and indicate the error
-    return (
-      <div className="flex flex-col items-center justify-center w-full h-[185px] border-2 border-dashed rounded-lg border-destructive bg-destructive/10 p-4">
-        <p className="text-sm font-semibold text-destructive">Dropzone Initialization Error</p>
-        <p className="text-xs text-destructive text-center mt-1">Could not initialize the file upload area. Please try refreshing the page.</p>
-      </div>
-    );
-  }
-
-  // Destructure if dropzoneResult is valid
-  const {
-    getRootProps,
-    getInputProps,
-    isDragActive,
-  } = dropzoneResult;
+        processingTimeoutRef.current = setTimeout(() => {
+          const successFile: UploadedFile = { ...uploadingFile, status: 'success' };
+          console.log(
+            '[FileUploadZone] setTimeout: Calling onFileAccepted (2) with successFile:',
+            successFile.name,
+            successFile.status
+          );
+          onFileAccepted(successFile); // Use onFileAccepted
+          setIsBrieflyProcessing(false);
+        }, 100); // Shortened timeout for quicker 'success' state if needed
+      } else {
+        console.log("[FileUploadZone] No files accepted or other issue.");
+        onFileAccepted(null); // Use onFileAccepted
+        setIsBrieflyProcessing(false);
+      }
+    },
+    [onFileAccepted, disabled]
+  );
   
   useEffect(() => {
     return () => {
@@ -131,12 +116,32 @@ export function FileUploadZone({ onFileChange, disabled = false }: FileUploadZon
     };
   }, []);
 
-  // This condition might be too aggressive if the parent (ExcelUploadTab)
-  // is supposed to show its own loading state while this component is disabled.
-  // However, if `disabled` is true, `useDropzone` is also disabled.
+  const dropzoneResult = useDropzone({
+    onDrop,
+    accept: acceptFileTypes,
+    maxSize: 5 * 1024 * 1024, // 5MB
+    multiple: false,
+    disabled: disabled || isBrieflyProcessing,
+  });
+
+  if (!dropzoneResult || typeof dropzoneResult.getRootProps !== 'function') {
+    console.error("[FileUploadZone] Error: useDropzone did not return a valid getRootProps function. Dropzone result:", dropzoneResult);
+    return (
+      <div className="flex flex-col items-center justify-center w-full h-[185px] border-2 border-dashed rounded-lg border-destructive bg-destructive/10 p-4">
+        <p className="text-sm font-semibold text-destructive">Dropzone Initialization Error</p>
+        <p className="text-xs text-destructive text-center mt-1">Could not initialize the file upload area. Please try refreshing the page.</p>
+      </div>
+    );
+  }
+  
+  const {
+    getRootProps,
+    getInputProps,
+    isDragActive,
+  } = dropzoneResult;
+
   if (disabled && !isBrieflyProcessing) {
-    console.log("[FileUploadZone] Rendered null because parent disabled and not briefly processing.");
-    return null; 
+     return null; 
   }
 
   return (
@@ -145,7 +150,7 @@ export function FileUploadZone({ onFileChange, disabled = false }: FileUploadZon
       className={cn(
         "flex flex-col items-center justify-center w-full h-[185px] border-2 border-dashed rounded-lg cursor-pointer transition-colors",
         isDragActive ? "border-primary bg-primary/10" : "border-border hover:border-primary/70",
-        (isBrieflyProcessing || (disabled && !isBrieflyProcessing)) ? "cursor-default opacity-70 bg-muted/50" : "" // Adjusted disabled class
+        (isBrieflyProcessing || (disabled && !isBrieflyProcessing)) ? "cursor-default opacity-70 bg-muted/50" : ""
       )}
     >
       <input {...getInputProps()} />
