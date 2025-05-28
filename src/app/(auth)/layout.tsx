@@ -3,8 +3,8 @@
 
 import React, { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
-import Link from 'next/link';
-import Image from 'next/image';
+// Link import는 더 이상 사용되지 않으므로 제거합니다.
+// Image import는 더 이상 사용되지 않으므로 제거합니다.
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 
@@ -39,17 +39,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
-       <div className="absolute top-4 left-4"> {/* Reduced top/left offset */}
-        <Link href="/" className="flex items-center"> {/* Simplified Link className */}
-          <Image
-            src="/adpopcorn-logo.svg"
-            alt="Adpopcorn Logo"
-            width={200}
-            height={30}
-            priority 
-          />
-        </Link>
-      </div>
+       {/* 로고 이미지와 링크를 포함한 div 제거 */}
       <div className="w-full max-w-md">
         {children} {/* This will be LoginForm or RegisterForm */}
       </div>
@@ -59,3 +49,4 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     </div>
   );
 }
+
