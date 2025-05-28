@@ -3,15 +3,14 @@
 
 import type React from 'react';
 import { useCallback, useState, useEffect, useRef } from 'react';
-import { useDropzone } from 'react-dropzone';
-import { UploadCloud, FileText, XCircle, CheckCircle2, Loader2 } from 'lucide-react';
-// Button and Progress are not used directly here if UI is minimal
+import { useDropzone, type Accept } from 'react-dropzone';
+import { UploadCloud, Loader2 } from 'lucide-react';
 import type { UploadedFile } from '@/types/inquiry';
 import { cn } from '@/lib/utils';
 
 interface FileUploadZoneProps {
-  onFileAccepted: (file: UploadedFile | null) => void;
-  isProcessingGlobal?: boolean; 
+  onFileChange: (file: UploadedFile | null) => void;
+  disabled?: boolean;
 }
 
 const formatBytes = (bytes: number, decimals = 2) => {
@@ -23,18 +22,29 @@ const formatBytes = (bytes: number, decimals = 2) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 };
 
-export function FileUploadZone({ onFileAccepted, isProcessingGlobal = false }: FileUploadZoneProps) {
-  const [isDropzoneBrieflyProcessing, setIsDropzoneBrieflyProcessing] = useState(false); 
+const acceptFileTypes: Accept = {
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+  'application/vnd.ms-excel': ['.xls'],
+};
+
+export function FileUploadZone({ onFileChange, disabled = false }: FileUploadZoneProps) {
+  const [isBrieflyProcessing, setIsBrieflyProcessing] = useState(false);
   const [currentFileMetaForDisplay, setCurrentFileMetaForDisplay] = useState<{name: string, size: number} | null>(null);
-  const uploadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const onDrop = useCallback((acceptedFiles: File[], fileRejections: any[]) => {
-    console.log("[FileUploadZone] onDrop. Accepted:", acceptedFiles.length, "Rejected:", fileRejections.length);
-    
-    if (uploadTimeoutRef.current) {
-      clearTimeout(uploadTimeoutRef.current);
+    console.log("[FileUploadZone] onDrop called. Accepted:", acceptedFiles.length, "Rejected:", fileRejections.length, "Parent Disabled:", disabled);
+    if (disabled) {
+      console.log("[FileUploadZone] Drop ignored because component is disabled by parent.");
+      return;
     }
-    setIsDropzoneBrieflyProcessing(true); 
+
+    setIsBrieflyProcessing(true);
+    setCurrentFileMetaForDisplay(null);
+
+    if (processingTimeoutRef.current) {
+      clearTimeout(processingTimeoutRef.current);
+    }
 
     if (fileRejections.length > 0) {
       const rejection = fileRejections[0];
@@ -53,54 +63,79 @@ export function FileUploadZone({ onFileAccepted, isProcessingGlobal = false }: F
         status: 'error',
         errorMessage: errorMessage,
       };
-      setCurrentFileMetaForDisplay({name: errorFile.name, size: errorFile.size});
-      console.log("[FileUploadZone] Calling onFileAccepted (1) with error file:", errorFile.name, errorFile.status);
-      onFileAccepted(errorFile); 
-      setIsDropzoneBrieflyProcessing(false);
+      console.log("[FileUploadZone] Calling onFileChange with error file:", errorFile.name);
+      onFileChange(errorFile);
+      setIsBrieflyProcessing(false);
       return;
     }
 
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0];
-      setCurrentFileMetaForDisplay({name: file.name, size: file.size});
+      setCurrentFileMetaForDisplay({ name: file.name, size: file.size });
       const uploadingFile: UploadedFile = {
         file,
         name: file.name,
         size: file.size,
         type: file.type,
-        status: 'uploading', 
+        status: 'uploading',
       };
-      console.log("[FileUploadZone] Calling onFileAccepted (1) with uploadingFile:", uploadingFile.name, uploadingFile.status);
-      onFileAccepted(uploadingFile); 
+      console.log("[FileUploadZone] Calling onFileChange (1) with uploadingFile:", uploadingFile.name, uploadingFile.status);
+      onFileChange(uploadingFile);
 
-      uploadTimeoutRef.current = setTimeout(() => {
-        // Ensure we are still processing the same file conceptually, though a new object is created
-        if (currentFileMetaForDisplay && currentFileMetaForDisplay.name === file.name) {
-            const successFile: UploadedFile = { ...uploadingFile, status: 'success' };
-            console.log("[FileUploadZone] setTimeout: Calling onFileAccepted (2) with successFile:", successFile.name, successFile.status);
-            onFileAccepted(successFile); 
-        } else {
-            console.log("[FileUploadZone] setTimeout: File changed before 'success' state could be sent for:", file.name);
-        }
-        setIsDropzoneBrieflyProcessing(false); 
-      }, 500); 
+      processingTimeoutRef.current = setTimeout(() => {
+        const successFile: UploadedFile = { ...uploadingFile, status: 'success' };
+        console.log("[FileUploadZone] setTimeout: Calling onFileChange (2) with successFile:", successFile.name, successFile.status);
+        onFileChange(successFile);
+        setIsBrieflyProcessing(false);
+      }, 500);
     } else {
       console.log("[FileUploadZone] No files accepted or other issue.");
-      onFileAccepted(null); 
-      setIsDropzoneBrieflyProcessing(false);
-      setCurrentFileMetaForDisplay(null);
+      onFileChange(null);
+      setIsBrieflyProcessing(false);
     }
-  }, [onFileAccepted, currentFileMetaForDisplay]); // Added currentFileMetaForDisplay to dependencies
+  }, [onFileChange, disabled]);
+
+  // Call useDropzone and store its result
+  const dropzoneResult = useDropzone({
+    onDrop,
+    accept: acceptFileTypes,
+    maxSize: 5 * 1024 * 1024, // 5MB
+    multiple: false,
+    disabled: disabled || isBrieflyProcessing,
+  });
+
+  // Check if useDropzone returned a valid result with getRootProps
+  if (!dropzoneResult || typeof dropzoneResult.getRootProps !== 'function') {
+    console.error("[FileUploadZone] Error: useDropzone did not return a valid getRootProps function. Dropzone result:", dropzoneResult);
+    // Return a fallback UI to prevent crashing and indicate the error
+    return (
+      <div className="flex flex-col items-center justify-center w-full h-[185px] border-2 border-dashed rounded-lg border-destructive bg-destructive/10 p-4">
+        <p className="text-sm font-semibold text-destructive">Dropzone Initialization Error</p>
+        <p className="text-xs text-destructive text-center mt-1">Could not initialize the file upload area. Please try refreshing the page.</p>
+      </div>
+    );
+  }
+
+  // Destructure if dropzoneResult is valid
+  const {
+    getRootProps,
+    getInputProps,
+    isDragActive,
+  } = dropzoneResult;
   
   useEffect(() => {
     return () => {
-      if (uploadTimeoutRef.current) {
-        clearTimeout(uploadTimeoutRef.current);
+      if (processingTimeoutRef.current) {
+        clearTimeout(processingTimeoutRef.current);
       }
     };
   }, []);
-  
-  if (isProcessingGlobal) { 
+
+  // This condition might be too aggressive if the parent (ExcelUploadTab)
+  // is supposed to show its own loading state while this component is disabled.
+  // However, if `disabled` is true, `useDropzone` is also disabled.
+  if (disabled && !isBrieflyProcessing) {
+    console.log("[FileUploadZone] Rendered null because parent disabled and not briefly processing.");
     return null; 
   }
 
@@ -110,11 +145,11 @@ export function FileUploadZone({ onFileAccepted, isProcessingGlobal = false }: F
       className={cn(
         "flex flex-col items-center justify-center w-full h-[185px] border-2 border-dashed rounded-lg cursor-pointer transition-colors",
         isDragActive ? "border-primary bg-primary/10" : "border-border hover:border-primary/70",
-        (isDropzoneBrieflyProcessing) ? "cursor-default opacity-70 bg-muted/50" : ""
+        (isBrieflyProcessing || (disabled && !isBrieflyProcessing)) ? "cursor-default opacity-70 bg-muted/50" : "" // Adjusted disabled class
       )}
     >
       <input {...getInputProps()} />
-      {(isDropzoneBrieflyProcessing) ? (
+      {(isBrieflyProcessing) ? (
         <Loader2 className="w-10 h-10 mb-3 text-primary animate-spin" />
       ) : (
         <UploadCloud className={cn("w-10 h-10 mb-3", isDragActive ? "text-primary" : "text-muted-foreground")} />
@@ -122,7 +157,7 @@ export function FileUploadZone({ onFileAccepted, isProcessingGlobal = false }: F
       
       {isDragActive ? (
         <p className="text-lg font-semibold text-primary">Drop the file here ...</p>
-      ) : (isDropzoneBrieflyProcessing) ? (
+      ) : (isBrieflyProcessing) ? (
         <>
           <p className="text-sm text-primary">Preparing file...</p>
           {currentFileMetaForDisplay && <p className="text-xs text-muted-foreground">{currentFileMetaForDisplay.name}</p>}
