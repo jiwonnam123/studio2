@@ -1,3 +1,4 @@
+
 // src/workers/excelParser.worker.ts
 import * as XLSX from 'xlsx';
 
@@ -13,7 +14,7 @@ export interface WorkerParseRequest {
 
 export interface WorkerParseResponse {
   error: string | null;
-  previewData: string[][] | null;
+  previewData: string[][] | null; // jsonData (array of arrays)
   totalDataRows: number;
   headersValid: boolean;
   dataExistsInSheet: boolean; // True if there are rows beyond the header
@@ -50,8 +51,8 @@ self.onmessage = async (event: MessageEvent<WorkerParseRequest>) => {
     }
 
     const worksheet = workbook.Sheets[sheetName];
-    // Ensure blankrows: false to skip empty rows which might affect totalDataRows count
-    const jsonData: any[][] = XLSX.utils.sheet_to_json<any>(worksheet, { header: 1, blankrows: false });
+    // Added dense: true for potential minor optimization
+    const jsonData: any[][] = XLSX.utils.sheet_to_json<any>(worksheet, { header: 1, blankrows: false, dense: true });
 
     if (!jsonData || jsonData.length === 0) {
       self.postMessage({
@@ -85,14 +86,14 @@ self.onmessage = async (event: MessageEvent<WorkerParseRequest>) => {
 
     self.postMessage({
       error: validationError,
-      previewData: jsonData, // Send all data; main thread decides on preview length
+      previewData: jsonData, // Send all data for preview
       totalDataRows: actualDataRows,
       headersValid: headersValid,
       dataExistsInSheet: dataExistsInSheet,
     } as WorkerParseResponse);
 
   } catch (e: any) {
-    console.error("Error parsing Excel file in worker:", e);
+    // console.error("Error parsing Excel file in worker:", e); // Keep for debugging if necessary
     self.postMessage({
       error: `Error parsing Excel file: ${e.message || 'Unknown error'}`,
       previewData: null,
