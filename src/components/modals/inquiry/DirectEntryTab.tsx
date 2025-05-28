@@ -123,7 +123,7 @@ export function DirectEntryTab() {
     if (isSelecting) {
         setIsSelecting(false);
     }
-  }, [isSelecting, setIsSelecting]);
+  }, [isSelecting]);
   
   useEffect(() => {
     document.addEventListener('mouseup', handleDocumentMouseUp);
@@ -133,9 +133,20 @@ export function DirectEntryTab() {
   }, [handleDocumentMouseUp]);
 
 
+  const handleCellMouseDown = useCallback((r: number, c: number) => {
+    setIsSelecting(true);
+    setSelectionStartCell({ r, c });
+    setSelectionEndCell({ r, c }); 
+  }, []);
+  
+  const handleCellMouseEnter = useCallback((r: number, c: number) => {
+    if (isSelecting) {
+      setSelectionEndCell({ r, c });
+    }
+  }, [isSelecting]);
+
   useEffect(() => {
     const handleGlobalKeyDown = (event: KeyboardEvent) => {
-      // Allow default behavior if an input is focused, unless it's a special key we handle globally for selection
       const activeElement = document.activeElement;
       const isInputFocused = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA');
 
@@ -160,8 +171,8 @@ export function DirectEntryTab() {
         }
       } else if ((event.key === 'Delete' || event.key === 'Backspace')) {
         const selection = getNormalizedSelection();
-        if (selection && !isInputFocused) { // Only handle if selection exists AND no input is focused for typing
-            event.preventDefault(); // Prevent default browser navigation for Backspace
+        if (selection && !isInputFocused) { 
+            event.preventDefault(); 
             let changed = false;
             const newGridData = gridData.map((row, rIdx) => {
                 if (rIdx >= selection.start.r && rIdx <= selection.end.r) {
@@ -169,7 +180,7 @@ export function DirectEntryTab() {
                         if (cIdx >= selection.start.c && cIdx <= selection.end.c) {
                             if (cell !== '') {
                                 changed = true;
-                                return ''; // Clear the cell
+                                return ''; 
                             }
                         }
                         return cell;
@@ -182,11 +193,7 @@ export function DirectEntryTab() {
                 setGridDataInternal(newGridData);
                 pushStateToHistory(newGridData);
             }
-            // Clear selection after deleting if you want, or keep it
-            // setSelectionStartCell(null); 
-            // setSelectionEndCell(null);
         }
-        // If an input IS focused, or no selection, let the default behavior of Delete/Backspace occur in the input
       }
     };
 
@@ -194,20 +201,9 @@ export function DirectEntryTab() {
     return () => {
       document.removeEventListener('keydown', handleGlobalKeyDown);
     };
-  }, [history, currentHistoryIndex, getNormalizedSelection, gridData, pushStateToHistory, setGridDataInternal, setSelectionStartCell, setSelectionEndCell, isSelecting]);
+  }, [history, currentHistoryIndex, getNormalizedSelection, gridData, pushStateToHistory]);
 
 
-  const handleCellMouseDown = useCallback((r: number, c: number) => {
-    setIsSelecting(true);
-    setSelectionStartCell({ r, c });
-    setSelectionEndCell({ r, c }); 
-  }, [setIsSelecting, setSelectionStartCell, setSelectionEndCell]);
-  
-  const handleCellMouseEnter = useCallback((r: number, c: number) => {
-    if (isSelecting) {
-      setSelectionEndCell({ r, c });
-    }
-  }, [isSelecting, setSelectionEndCell]);
 
   const isCellSelected = (r: number, c: number): boolean => {
     const selection = getNormalizedSelection();
@@ -220,9 +216,8 @@ export function DirectEntryTab() {
     const emptyGrid = initialGridData();
     if(JSON.stringify(gridData) !== JSON.stringify(emptyGrid)) {
         setGridDataInternal(emptyGrid);
-        pushStateToHistory(emptyGrid); // Push initial empty state to history
+        pushStateToHistory(emptyGrid); 
     } else if (history.length > 1 || currentHistoryIndex !== 0) {
-        // If grid is already empty, but history exists, reset history
         setHistory([emptyGrid.map(row => [...row])]); 
         setCurrentHistoryIndex(0);
     }
@@ -235,18 +230,14 @@ export function DirectEntryTab() {
   return (
     <div className="space-y-4 py-2 flex flex-col h-full">
       <div className="flex-shrink-0 space-y-2">
-        <div className="flex justify-between items-center">
-            <p className="text-sm text-muted-foreground flex-grow">
-            Enter your inquiry details directly into the spreadsheet below. Use Tab or Shift+Tab to navigate.
-            Copy/paste from Excel is supported. Use Ctrl+Z to Undo, Ctrl+Y/Ctrl+Shift+Z to Redo.
-            Click and drag to select a range of cells. Press Delete or Backspace to clear selected cells.
-            </p>
+        <div className="flex justify-end items-center"> {/* Modified to justify-end */}
+            {/* The descriptive text <p> tag has been removed */}
             <Button 
                 type="button" 
                 variant="outline"
                 size="sm"
                 onClick={handleInitializeGrid}
-                className="ml-4" // Add margin for spacing
+                className="ml-4" 
             >
                 <RotateCcw className="mr-2 h-4 w-4" />
                 Initialize Grid
@@ -318,5 +309,3 @@ export function DirectEntryTab() {
     </div>
   );
 }
-
-    
