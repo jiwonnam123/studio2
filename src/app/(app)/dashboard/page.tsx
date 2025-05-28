@@ -295,13 +295,10 @@ export default function DashboardPage() {
           <>
             <Card>
               <Table>
-                {/* <TableCaption>A list of your submitted inquiries.</TableCaption> */}
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[10%]">Submitted Date</TableHead>
-                    {isAdmin && <TableHead className="w-[10%] text-xs">User ID</TableHead>}
-                    {isAdmin && <TableHead className="w-[8%] text-xs">Source</TableHead>}
-                    {isAdmin && <TableHead className="w-[12%] text-xs">File Name / Details</TableHead>}
+                    {/* Admin-specific columns removed as per request */}
                     <TableHead className="w-[10%]">Campaign Key</TableHead>
                     <TableHead className="w-[15%]">Campaign Name</TableHead>
                     <TableHead className="w-[10%]">ADID/IDFA</TableHead>
@@ -318,20 +315,7 @@ export default function DashboardPage() {
                       <TableCell className="font-medium py-2">
                         {row.originalInquirySubmittedAt ? format(new Date(row.originalInquirySubmittedAt), "yyyy-MM-dd") : 'N/A'}
                       </TableCell>
-                      {isAdmin && <TableCell className="py-2 text-xs truncate max-w-[100px]">{row.originalInquiryUserId}</TableCell>}
-                      {isAdmin && (
-                        <TableCell className="py-2">
-                          <Badge variant={row.originalInquirySource === 'excel' ? 'secondary' : 'outline'} className="capitalize text-xs">
-                            {row.originalInquirySource}
-                          </Badge>
-                        </TableCell>
-                      )}
-                      {isAdmin && (
-                          <TableCell className="py-2 text-xs truncate max-w-[150px]">
-                              {row.originalInquirySource === 'excel' && row.originalInquiryFileName ? row.originalInquiryFileName :
-                               row.originalInquirySource === 'direct' ? 'Manual Input' : 'N/A'}
-                          </TableCell>
-                      )}
+                      {/* Admin-specific cells removed */}
                       <TableCell className="py-2 truncate max-w-[100px]">{row.campaignKey}</TableCell>
                       <TableCell className="py-2 truncate max-w-[120px]">{row.campaignName}</TableCell>
                       <TableCell className="py-2 truncate max-w-[100px]">{row.adidOrIdfa}</TableCell>
@@ -401,6 +385,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-
-    
