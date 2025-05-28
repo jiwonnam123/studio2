@@ -51,7 +51,6 @@ self.onmessage = async (event: MessageEvent<WorkerParseRequest>) => {
     }
 
     const worksheet = workbook.Sheets[sheetName];
-    // Added dense: true for potential minor optimization
     const jsonData: any[][] = XLSX.utils.sheet_to_json<any>(worksheet, { header: 1, blankrows: false, dense: true });
 
     if (!jsonData || jsonData.length === 0) {
@@ -66,34 +65,49 @@ self.onmessage = async (event: MessageEvent<WorkerParseRequest>) => {
     }
 
     const headersFromExcel = jsonData[0] as string[];
-    // actualDataRows counts rows excluding the header row
-    const actualDataRows = jsonData.length > 1 ? jsonData.length - 1 : 0;
     let headersValid = false;
     let validationError: string | null = null;
+    let dataExistsInSheet = false;
+    let totalDataRows = 0;
 
     if (!headersFromExcel || headersFromExcel.length === 0) {
-      validationError = "The Excel file is missing headers.";
+      validationError = "The Excel file is missing a header row.";
+      headersValid = false;
     } else if (
       headersFromExcel.length !== customColumnHeaders.length ||
-      !headersFromExcel.every((header, index) => header?.trim() === customColumnHeaders[index]?.trim())
+      !headersFromExcel.every((header, index) => String(header || '').trim() === customColumnHeaders[index]?.trim())
     ) {
-      validationError = `Invalid headers. Expected: "${customColumnHeaders.join(", ")}". Found: "${headersFromExcel.join(", ")}". Please use the provided template.`;
+      validationError = `Invalid headers. Expected: "${customColumnHeaders.join(", ")}". Found: "${headersFromExcel.map(h => String(h || '').trim()).join(", ")}". Please use the provided template.`;
+      headersValid = false;
     } else {
       headersValid = true;
     }
 
-    const dataExistsInSheet = actualDataRows > 0;
+    if (headersValid) {
+      // Headers are valid, now check data rows
+      const actualDataRowsArray = jsonData.slice(1);
+      totalDataRows = actualDataRowsArray.length;
+      dataExistsInSheet = totalDataRows > 0;
+      if (!dataExistsInSheet) {
+        // Headers are valid, but no data rows found
+        // This is not an error per se, but might be a warning or info for the user
+        // For now, onValidationComplete will get hasData: false
+      }
+    } else {
+      // Headers are invalid, so we consider no valid data to exist for processing
+      dataExistsInSheet = false;
+      totalDataRows = 0;
+    }
 
     self.postMessage({
       error: validationError,
-      previewData: jsonData, // Send all data for preview
-      totalDataRows: actualDataRows,
+      previewData: jsonData, // Send all data for preview, even if headers are invalid for user context
+      totalDataRows: totalDataRows, // This will be 0 if headers are invalid
       headersValid: headersValid,
-      dataExistsInSheet: dataExistsInSheet,
+      dataExistsInSheet: dataExistsInSheet, // This will be false if headers are invalid
     } as WorkerParseResponse);
 
   } catch (e: any) {
-    // console.error("Error parsing Excel file in worker:", e); // Keep for debugging if necessary
     self.postMessage({
       error: `Error parsing Excel file: ${e.message || 'Unknown error'}`,
       previewData: null,
@@ -103,5 +117,3 @@ self.onmessage = async (event: MessageEvent<WorkerParseRequest>) => {
     } as WorkerParseResponse);
   }
 };
-
-// export {}; // Not strictly necessary for workers imported with `new URL(...)` but good practice for module consistency
