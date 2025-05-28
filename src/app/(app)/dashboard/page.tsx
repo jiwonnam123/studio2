@@ -433,7 +433,7 @@ export default function DashboardPage() {
                 <TableHeader>
                   <TableRow>
                     {isAdmin && (
-                      <TableHead className="w-[30px] px-2 py-2 text-center">
+                      <TableHead className="w-[30px] px-2 py-2 text-center"> {/* 여백 줄임 */}
                         <Checkbox 
                           checked={isAllOnPageSelected || (isSomeOnPageSelected ? "indeterminate" : false)}
                           onCheckedChange={handleSelectAllOnPage}
@@ -441,22 +441,22 @@ export default function DashboardPage() {
                         />
                       </TableHead>
                     )}
-                    <TableHead className="w-[10%]">Submitted Date</TableHead>
-                    <TableHead className="w-[10%]">Campaign Key</TableHead>
-                    <TableHead className="w-[15%]">Campaign Name</TableHead>
-                    <TableHead className="w-[10%]">ADID/IDFA</TableHead>
-                    <TableHead className="w-[8%]">User Name</TableHead>
-                    <TableHead className="w-[10%]">Contact</TableHead>
-                    <TableHead className="w-[12%]">Remarks</TableHead>
-                    <TableHead className="w-[10%] text-center">Status</TableHead>
-                    {isAdmin && <TableHead className="w-[5%] text-xs text-center">Edit</TableHead>}
+                    <TableHead className="w-[100px]">Submitted Date</TableHead> {/* 너비 고정 */}
+                    <TableHead className="min-w-[120px]">Campaign Key</TableHead> {/* 최소 너비 */}
+                    <TableHead className="min-w-[150px] max-w-[200px]">Campaign Name</TableHead> {/* 최소/최대 너비 */}
+                    <TableHead className="min-w-[120px]">ADID/IDFA</TableHead> {/* 최소 너비 */}
+                    <TableHead className="w-[100px]">User Name</TableHead> {/* 너비 고정 */}
+                    <TableHead className="w-[120px]">Contact</TableHead> {/* 너비 고정 */}
+                    <TableHead className="flex-1 min-w-[150px]">Remarks</TableHead> {/* 유동적, 최소 너비 */}
+                    <TableHead className="w-[120px] text-center">Status</TableHead> {/* 너비 고정, 중앙 정렬 */}
+                    {isAdmin && <TableHead className="w-[50px] text-center">Edit</TableHead>} {/* 너비 고정, 중앙 정렬 */}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedDataRows.map((row) => (
                     <TableRow key={row.key} className="text-xs hover:bg-muted/50" data-state={selectedRows.has(row.key) ? "selected" : ""}>
                        {isAdmin && (
-                        <TableCell className="px-2 py-1 text-center">
+                        <TableCell className="px-2 py-1 text-center"> {/* 여백 줄임 */}
                            <Checkbox 
                             checked={selectedRows.has(row.key)}
                             onCheckedChange={(checked) => handleRowSelectionChange(row, checked)}
@@ -468,12 +468,12 @@ export default function DashboardPage() {
                       <TableCell className="font-medium py-2">
                         {row.originalInquirySubmittedAt ? format(new Date(row.originalInquirySubmittedAt), "yyyy-MM-dd") : 'N/A'}
                       </TableCell>
-                      <TableCell className="py-2 truncate max-w-[100px]">{row.campaignKey}</TableCell>
-                      <TableCell className="py-2 truncate max-w-[120px]">{row.campaignName}</TableCell>
-                      <TableCell className="py-2 truncate max-w-[100px]">{row.adidOrIdfa}</TableCell>
-                      <TableCell className="py-2 truncate max-w-[80px]">{row.userName}</TableCell>
-                      <TableCell className="py-2 truncate max-w-[90px]">{row.contact}</TableCell>
-                      <TableCell className="py-2 truncate max-w-[100px]">{row.remarks}</TableCell>
+                      <TableCell className="py-2 truncate max-w-[120px]">{row.campaignKey}</TableCell>
+                      <TableCell className="py-2 truncate max-w-[200px]">{row.campaignName}</TableCell>
+                      <TableCell className="py-2 truncate max-w-[120px]">{row.adidOrIdfa}</TableCell>
+                      <TableCell className="py-2 truncate max-w-[100px]">{row.userName}</TableCell>
+                      <TableCell className="py-2 truncate max-w-[120px]">{row.contact}</TableCell>
+                      <TableCell className="py-2 truncate max-w-[none] whitespace-normal break-words">{row.remarks}</TableCell> {/* 잘림 대신 줄바꿈 */}
                       <TableCell className="py-2 text-center">{renderStatusBadge(row.status)}</TableCell>
                       {isAdmin && (
                         <TableCell className="py-2 text-center">
@@ -537,5 +537,4 @@ export default function DashboardPage() {
     </div>
   );
 }
-
     
