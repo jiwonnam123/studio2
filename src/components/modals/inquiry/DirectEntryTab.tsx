@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { RotateCcw } from 'lucide-react'; // Removed Trash2
+import { RotateCcw } from 'lucide-react';
 
 const NUM_ROWS = 10;
 const NUM_COLS = 6;
@@ -120,11 +120,25 @@ export function DirectEntryTab() {
   }, [selectionStartCell, selectionEndCell]);
 
   const handleDocumentMouseUp = useCallback(() => {
-    setIsSelecting(false);
-  }, [setIsSelecting]);
+    if (isSelecting) {
+        setIsSelecting(false);
+    }
+  }, [isSelecting, setIsSelecting]);
+  
+  useEffect(() => {
+    document.addEventListener('mouseup', handleDocumentMouseUp);
+    return () => {
+      document.removeEventListener('mouseup', handleDocumentMouseUp);
+    };
+  }, [handleDocumentMouseUp]);
+
 
   useEffect(() => {
     const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      // Allow default behavior if an input is focused, unless it's a special key we handle globally for selection
+      const activeElement = document.activeElement;
+      const isInputFocused = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA');
+
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
       const isCtrlZ = (event.ctrlKey || (isMac && event.metaKey)) && event.key.toLowerCase() === 'z' && !event.shiftKey;
       const isCtrlY = (event.ctrlKey || (isMac && event.metaKey)) && event.key.toLowerCase() === 'y';
@@ -144,12 +158,10 @@ export function DirectEntryTab() {
           setGridDataInternal(history[nextIndex].map(row => [...row]));
           setCurrentHistoryIndex(nextIndex);
         }
-      } else if (event.key === 'Delete' || event.key === 'Backspace') {
+      } else if ((event.key === 'Delete' || event.key === 'Backspace')) {
         const selection = getNormalizedSelection();
-        if (selection) {
-            // Prevent default browser behavior if we're handling the key press for a selection
-            event.preventDefault();
-
+        if (selection && !isInputFocused) { // Only handle if selection exists AND no input is focused for typing
+            event.preventDefault(); // Prevent default browser navigation for Backspace
             let changed = false;
             const newGridData = gridData.map((row, rIdx) => {
                 if (rIdx >= selection.start.r && rIdx <= selection.end.r) {
@@ -170,11 +182,11 @@ export function DirectEntryTab() {
                 setGridDataInternal(newGridData);
                 pushStateToHistory(newGridData);
             }
-            // Clear selection after deleting
-            setSelectionStartCell(null);
-            setSelectionEndCell(null);
+            // Clear selection after deleting if you want, or keep it
+            // setSelectionStartCell(null); 
+            // setSelectionEndCell(null);
         }
-        // If no selection, Delete/Backspace will behave normally for the focused input (handled by the input itself)
+        // If an input IS focused, or no selection, let the default behavior of Delete/Backspace occur in the input
       }
     };
 
@@ -182,21 +194,20 @@ export function DirectEntryTab() {
     return () => {
       document.removeEventListener('keydown', handleGlobalKeyDown);
     };
-  }, [history, currentHistoryIndex, getNormalizedSelection, gridData, pushStateToHistory, setGridDataInternal, setSelectionStartCell, setSelectionEndCell]);
+  }, [history, currentHistoryIndex, getNormalizedSelection, gridData, pushStateToHistory, setGridDataInternal, setSelectionStartCell, setSelectionEndCell, isSelecting]);
 
 
   const handleCellMouseDown = useCallback((r: number, c: number) => {
     setIsSelecting(true);
     setSelectionStartCell({ r, c });
     setSelectionEndCell({ r, c }); 
-    document.addEventListener('mouseup', handleDocumentMouseUp, { once: true });
-  }, [handleDocumentMouseUp]);
+  }, [setIsSelecting, setSelectionStartCell, setSelectionEndCell]);
   
   const handleCellMouseEnter = useCallback((r: number, c: number) => {
     if (isSelecting) {
       setSelectionEndCell({ r, c });
     }
-  }, [isSelecting]);
+  }, [isSelecting, setSelectionEndCell]);
 
   const isCellSelected = (r: number, c: number): boolean => {
     const selection = getNormalizedSelection();
@@ -207,36 +218,39 @@ export function DirectEntryTab() {
   
   const handleInitializeGrid = useCallback(() => {
     const emptyGrid = initialGridData();
-    setGridDataInternal(emptyGrid);
-    if(JSON.stringify(gridData) !== JSON.stringify(emptyGrid) || history.length > 1 || currentHistoryIndex !== 0) {
+    if(JSON.stringify(gridData) !== JSON.stringify(emptyGrid)) {
+        setGridDataInternal(emptyGrid);
+        pushStateToHistory(emptyGrid); // Push initial empty state to history
+    } else if (history.length > 1 || currentHistoryIndex !== 0) {
+        // If grid is already empty, but history exists, reset history
         setHistory([emptyGrid.map(row => [...row])]); 
         setCurrentHistoryIndex(0);
     }
     setSelectionStartCell(null);
     setSelectionEndCell(null);
-  }, [gridData, history.length, currentHistoryIndex]);
+  }, [gridData, history.length, currentHistoryIndex, pushStateToHistory]);
 
   const columnHeaders = Array(NUM_COLS).fill(null).map((_, i) => getColumnName(i));
 
   return (
     <div className="space-y-4 py-2 flex flex-col h-full">
       <div className="flex-shrink-0 space-y-2">
-        <p className="text-sm text-muted-foreground">
-          Enter your inquiry details directly into the spreadsheet below. Use Tab or Shift+Tab to navigate.
-          Copy/paste from Excel is supported. Use Ctrl+Z to Undo, Ctrl+Y/Ctrl+Shift+Z to Redo.
-          Click and drag to select a range of cells. Press Delete or Backspace to clear selected cells.
-        </p>
-        <div className="flex gap-2">
-          {/* "Clear Selected" button removed */}
-          <Button 
-            type="button" 
-            variant="outline"
-            size="sm"
-            onClick={handleInitializeGrid}
-          >
-            <RotateCcw className="mr-2 h-4 w-4" />
-            Initialize Grid
-          </Button>
+        <div className="flex justify-between items-center">
+            <p className="text-sm text-muted-foreground flex-grow">
+            Enter your inquiry details directly into the spreadsheet below. Use Tab or Shift+Tab to navigate.
+            Copy/paste from Excel is supported. Use Ctrl+Z to Undo, Ctrl+Y/Ctrl+Shift+Z to Redo.
+            Click and drag to select a range of cells. Press Delete or Backspace to clear selected cells.
+            </p>
+            <Button 
+                type="button" 
+                variant="outline"
+                size="sm"
+                onClick={handleInitializeGrid}
+                className="ml-4" // Add margin for spacing
+            >
+                <RotateCcw className="mr-2 h-4 w-4" />
+                Initialize Grid
+            </Button>
         </div>
       </div>
       <ScrollArea className="flex-grow border rounded-md shadow-sm bg-card">
@@ -245,6 +259,10 @@ export function DirectEntryTab() {
             ref={tableRef} 
             className="min-w-full divide-y divide-border text-sm"
             style={{ userSelect: isSelecting ? 'none' : 'auto' }} 
+            onMouseLeave={() => {
+                // Optional: if you want to stop selection when mouse leaves the table
+                // if (isSelecting) setIsSelecting(false); 
+            }}
           >
             <thead className="bg-muted/50 sticky top-0 z-10">
               <tr>
@@ -270,7 +288,7 @@ export function DirectEntryTab() {
                         key={`cell-${rowIndex}-${colIndex}`} 
                         className={cn(
                           "p-0 relative", 
-                          isCellSelected(rowIndex, colIndex) && "bg-primary/20" 
+                           isCellSelected(rowIndex, colIndex) && "bg-primary/20" 
                         )}
                         onMouseDown={() => handleCellMouseDown(rowIndex, colIndex)}
                         onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
@@ -300,3 +318,5 @@ export function DirectEntryTab() {
     </div>
   );
 }
+
+    
