@@ -1,7 +1,8 @@
 
 "use client";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+// Avatar imports are removed as it's no longer used.
+// import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"; 
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -12,7 +13,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
-import { LogOut } from "lucide-react"; // UserCircle is no longer needed
+import { LogOut } from "lucide-react";
+import { UserCircleIcon } from '@/components/icons/UserCircleIcon'; // Import the new icon
 
 export function UserNav() {
   const { user, logout, isAuthenticated } = useAuth();
@@ -21,19 +23,11 @@ export function UserNav() {
     return null;
   }
 
-  const getInitials = (email: string) => {
-    const parts = email.split('@')[0];
-    return parts.substring(0, 2).toUpperCase();
-  }
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={user.name ? `https://avatar.vercel.sh/${user.name}.png` : `https://avatar.vercel.sh/${user.email}.png`} alt={user.email || "User Avatar"} />
-            <AvatarFallback>{user.email ? getInitials(user.email) : 'U'}</AvatarFallback>
-          </Avatar>
+        <Button variant="ghost" className="relative h-8 w-8 rounded-full p-0 flex items-center justify-center">
+          <UserCircleIcon className="h-6 w-6 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
@@ -48,7 +42,6 @@ export function UserNav() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {/* Profile button and its separator removed */}
         <DropdownMenuItem onClick={logout}>
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
