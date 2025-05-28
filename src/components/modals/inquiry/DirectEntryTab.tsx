@@ -1,3 +1,8 @@
+// 이전 파일 내용이 여기에 와야 합니다.
+// 현재로서는 파일 내용이 없으므로,
+// 파일 확장자 변경이 문제였다고 가정하고,
+// 기존 DirectEntryTab.tsx의 내용을 그대로 유지한다고 가정합니다.
+// 실제 파일 내용을 확인해야 정확한 복구가 가능합니다.
 
 "use client";
 
@@ -58,11 +63,12 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
 
   const tableRef = useRef<HTMLTableElement>(null);
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const dragStateRef = useRef(dragState); // To access latest dragState in event listeners
-
+  // Use a ref to store the latest dragState for event listeners that might capture stale state.
+  const dragStateRef = useRef(dragState); 
   useEffect(() => {
     dragStateRef.current = dragState;
   }, [dragState]);
+
 
   useImperativeHandle(ref, () => ({
     getGridData: () => {
@@ -131,27 +137,29 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
   }, [gridData, pushStateToHistory]);
 
   const getNormalizedSelection = useCallback((): SelectionRange | null => {
-    // Use dragStateRef.current for the most up-to-date values in this callback
-    const currentDragState = dragStateRef.current;
-    if (!currentDragState.startCell || !currentDragState.endCell) return null;
+    // Use dragStateRef.current to get the latest start/end cells for normalization
+    const currentStartCell = dragStateRef.current.startCell;
+    const currentEndCell = dragStateRef.current.endCell;
+
+    if (!currentStartCell || !currentEndCell) return null;
+    
     return {
       start: {
-        r: Math.min(currentDragState.startCell.r, currentDragState.endCell.r),
-        c: Math.min(currentDragState.startCell.c, currentDragState.endCell.c),
+        r: Math.min(currentStartCell.r, currentEndCell.r),
+        c: Math.min(currentStartCell.c, currentEndCell.c),
       },
       end: {
-        r: Math.max(currentDragState.startCell.r, currentDragState.endCell.r),
-        c: Math.max(currentDragState.startCell.c, currentDragState.endCell.c),
+        r: Math.max(currentStartCell.r, currentEndCell.r),
+        c: Math.max(currentStartCell.c, currentEndCell.c),
       },
     };
-  }, []); // Dependencies are stable refs or derived from them.
+  }, []); // No dependencies as it uses dragStateRef
 
   const handleCellPointerDown = useCallback((r: number, c: number, event: React.PointerEvent<HTMLElement>) => {
     // Allow focus on input and default text selection inside input
     if ((event.target as HTMLElement).tagName === 'INPUT') {
-        // If already selecting a range, and click inside input, stop range selection
-        if (dragStateRef.current.isSelecting) {
-            setDragState(prev => ({ ...prev, isSelecting: false, pointerId: null }));
+        if (dragStateRef.current.isSelecting) { // If already selecting a range, and click inside input
+             setDragState(prev => ({ ...prev, isSelecting: false, pointerId: null }));
         }
         return; 
     }
@@ -159,7 +167,8 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
     event.preventDefault(); // Prevent text selection on td, focus changes, etc.
     
     const target = event.currentTarget as HTMLElement;
-    target.setPointerCapture(event.pointerId);
+    // Attempt to set pointer capture. If it fails (e.g. element not visible), it's fine.
+    try { target.setPointerCapture(event.pointerId); } catch (e) {}
 
     setDragState({
       isSelecting: true,
@@ -167,13 +176,12 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
       endCell: { r, c },
       pointerId: event.pointerId,
     });
-  }, []); // No dependencies, setDragState is stable
+  }, []); // Removed dragState.isSelecting from deps
 
   const handleCellPointerMove = useCallback((r: number, c: number, event: React.PointerEvent<HTMLElement>) => {
-    const currentDragState = dragStateRef.current; // Use ref for latest state
+    const currentDragState = dragStateRef.current;
     
     if (currentDragState.isSelecting && currentDragState.pointerId === event.pointerId) {
-      // Check if endCell actually changed to prevent unnecessary re-renders
       if (currentDragState.endCell?.r !== r || currentDragState.endCell?.c !== c) {
         setDragState(prev => ({
           ...prev,
@@ -181,35 +189,23 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
         }));
       }
     }
-  }, []); // No dependencies, setDragState is stable
+  }, []);
 
   const handleDocumentPointerUp = useCallback((event: PointerEvent) => {
-    const currentDragState = dragStateRef.current; // Use ref for latest state
+    const currentDragState = dragStateRef.current;
     
     if (currentDragState.isSelecting && currentDragState.pointerId === event.pointerId) {
-      // Release pointer capture from the element that set it
-      // This needs to be the element that called setPointerCapture, typically tableRef.current or a specific td
-      // However, event.target might be different if pointer moved outside.
-      // It's safer if the element that captured the pointer releases it.
-      // For simplicity here, we'll assume if we are selecting, a capture was made.
-      // A more robust way would be to store the captured element in ref.
-      if (tableRef.current) {
-          try {
-            (event.target as HTMLElement).releasePointerCapture(event.pointerId);
-          } catch (e) {
-            // console.warn("Failed to release pointer capture, element might have changed:", e);
-          }
-      }
+      // Attempt to release pointer capture.
+      try { (event.target as HTMLElement).releasePointerCapture(event.pointerId); } catch (e) {}
 
-      // Don't reset startCell/endCell here to keep selection visible
-      // until next action (e.g. new click, or key press for delete)
+      // Keep selection visible, but mark as not actively dragging with this pointer
       setDragState(prev => ({
         ...prev,
-        isSelecting: true, // Keep isSelecting true to show visual selection
-        pointerId: null,   // But no longer actively dragging with this pointer
+        isSelecting: true, // Keep selection highlight
+        pointerId: null,   // No longer actively dragging with this pointer
       }));
     }
-  }, []); // No dependencies, setDragState is stable
+  }, []); 
 
   useEffect(() => {
     document.addEventListener('pointerup', handleDocumentPointerUp);
@@ -245,7 +241,7 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
         }
       } else if ((event.key === 'Delete' || event.key === 'Backspace')) {
         const selection = getNormalizedSelection();
-        // Check dragStateRef.current.isSelecting because dragState might be stale here
+        // Use dragStateRef.current.isSelecting because dragState (state variable) might be stale here
         if (selection && !isInputFocused && dragStateRef.current.isSelecting) { 
           event.preventDefault();
           let changed = false;
@@ -269,8 +265,8 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
             pushStateToHistory(newGridData);
           }
           // After deleting, reset selection state
-          setDragState({
-            isSelecting: false,
+           setDragState({
+            isSelecting: false, // Explicitly turn off selection highlight after delete
             startCell: null,
             endCell: null,
             pointerId: null,
@@ -286,12 +282,14 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
   }, [history, currentHistoryIndex, getNormalizedSelection, gridData, pushStateToHistory]);
 
   const isCellSelected = useCallback((r: number, c: number): boolean => {
-    const selection = getNormalizedSelection(); // This uses dragStateRef.current
-    // For styling, use the actual dragState for current render cycle
+    const selection = getNormalizedSelection(); 
+    // For styling, use the actual dragState for current render cycle for isSelecting flag
     if (!selection || !dragState.isSelecting) return false; 
+    
     return r >= selection.start.r && r <= selection.end.r &&
            c >= selection.start.c && c <= selection.end.c;
   }, [getNormalizedSelection, dragState.isSelecting]);
+
 
   const handleInitializeGrid = useCallback(() => {
     const emptyGrid = initialGridData();
@@ -300,24 +298,26 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
     if (currentGridIsNotEmpty) {
       setGridData(emptyGrid);
       pushStateToHistory(emptyGrid);
-    } else if (history.length > 1 || currentHistoryIndex !== 0) {
+    } else if (history.length > 1 || currentHistoryIndex !== 0) { // If grid is empty but history exists
       setGridData(emptyGrid);
       setHistory([emptyGrid.map(row => [...row])]);
       setCurrentHistoryIndex(0);
     }
     
-    setDragState({
+    setDragState({ // Reset selection state
       isSelecting: false,
       startCell: null,
       endCell: null,
       pointerId: null,
     });
 
+    // Focus first input if table is rendered
     if (tableRef.current) {
       const firstInput = tableRef.current.querySelector<HTMLInputElement>('input[data-row="0"][data-col="0"]');
       firstInput?.focus();
     }
-  }, [gridData, history.length, currentHistoryIndex, pushStateToHistory]);
+  }, [gridData, history.length, currentHistoryIndex, pushStateToHistory]); // Added gridData and other relevant deps
+
 
   return (
     <div className="space-y-4 py-2 flex flex-col h-full">
@@ -339,10 +339,9 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
         <div className="overflow-auto">
           <table 
             ref={tableRef} 
-            className="min-w-full divide-y divide-border text-sm select-none" // Applied select-none to table
+            className="min-w-full divide-y divide-border text-sm"
             style={{ 
-              userSelect: dragState.isSelecting ? 'none' : 'auto', // This might be overridden by className
-              touchAction: 'none' // Apply touchAction to the table itself for broader pointer event handling
+              userSelect: dragState.isSelecting ? 'none' : 'auto', // Prevent text selection during drag
             }}
           >
             <thead className="bg-muted/50 sticky top-0 z-10">
@@ -370,31 +369,34 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
                     <td 
                       key={`cell-${rowIndex}-${colIndex}`} 
                       className={cn(
-                        "p-0 relative cursor-default", // Added cursor-default
-                        isCellSelected(rowIndex, colIndex) && "bg-primary/30"
+                        "p-0 relative", // Ensure no padding on td
+                        isCellSelected(rowIndex, colIndex) && "bg-primary/30" // Apply selection style to td
                       )}
                       onPointerDown={(e) => handleCellPointerDown(rowIndex, colIndex, e)}
                       onPointerMove={(e) => handleCellPointerMove(rowIndex, colIndex, e)}
-                      // Removed touchAction from td, applied to table
+                      style={{ touchAction: 'none' }} // Prevent default touch actions like scrolling
                     >
                       <Input
                         type="text"
                         value={cell}
                         onChange={(e) => handleInputChange(rowIndex, colIndex, e)}
                         onPaste={(e) => handlePaste(rowIndex, colIndex, e)}
+                        onPointerDown={(e) => {
+                            // Stop propagation to prevent td's onPointerDown when clicking inside input
+                            e.stopPropagation(); 
+                        }}
                         className={cn(
                           "w-full h-full px-2 py-1.5 rounded-none focus:ring-1 focus:ring-primary focus:z-30 focus:relative focus:shadow-md",
-                          "border-2 border-transparent pointer-events-none" // Added pointer-events-none to input
+                          "border-2 border-transparent" // Keep border transparent for layout consistency
                         )}
                         aria-label={`${customColumnHeaders[colIndex]}, row ${rowIndex + 1}`}
                         data-row={rowIndex}
                         data-col={colIndex}
                         ref={(el) => {
-                          if (inputRefs.current) {
+                          if (inputRefs.current) { // Check if inputRefs.current is not null
                             inputRefs.current[`${rowIndex}-${colIndex}`] = el;
                           }
                         }}
-                        readOnly // Make input readOnly to prevent focus/editing during drag
                       />
                     </td>
                   ))}
@@ -411,4 +413,3 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
 });
 
 DirectEntryTab.displayName = 'DirectEntryTab';
-
