@@ -1,7 +1,6 @@
-
 "use client";
 
-import React from 'react'; // Removed useEffect, useState, useCallback as they are managed by parent
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Download, AlertTriangle, CheckCircle2, FileText, XCircle, Loader2 } from 'lucide-react';
 import { FileUploadZone } from './FileUploadZone';
@@ -15,13 +14,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+
 
 interface ExcelUploadTabProps {
   uploadedFileState: UploadedFile | null;
-  onFileChange: (file: UploadedFile | null) => void; // To remove the file
+  onFileChange: (file: UploadedFile | null) => void; 
   excelValidationState: ExcelValidationResult | null;
-  isProcessingGlobal: boolean; // Global processing state from InquiryModal
+  isProcessingGlobal: boolean; 
 }
 
 const formatBytes = (bytes: number, decimals = 2) => {
@@ -35,11 +36,12 @@ const formatBytes = (bytes: number, decimals = 2) => {
 
 export function ExcelUploadTab({
   uploadedFileState,
-  onFileChange, // This is InquiryModal's handleFileChange
+  onFileChange,
   excelValidationState,
   isProcessingGlobal,
 }: ExcelUploadTabProps) {
-  console.log("[DEBUG ExcelUploadTab] Rendering. Props:", { isProcessingGlobal, uploadedFileStateStatus: uploadedFileState?.status, excelValidationStateError: excelValidationState?.error });
+  
+  // console.log("[DEBUG ExcelUploadTab] Rendering. Props:", { isProcessingGlobal, uploadedFileStateStatus: uploadedFileState?.status, excelValidationStateError: excelValidationState?.error, excelHasData: excelValidationState?.hasData });
 
   const handleDownloadTemplate = () => {
     const link = document.createElement('a');
@@ -51,17 +53,17 @@ export function ExcelUploadTab({
   };
 
   const handleRemoveFile = () => {
-    if (!isProcessingGlobal) {
-      onFileChange(null); // Notify parent (InquiryModal) to remove the file and reset states
+    // Global processing check is good, but button should be disabled by parent anyway
+    if (!isProcessingGlobal) { 
+      onFileChange(null); 
     }
   };
 
-  const renderFileInfoSection = () => {
-    if (!uploadedFileState || uploadedFileState.status === 'idle') {
-      return null;
+  const renderFileInfo = () => {
+    if (!uploadedFileState || uploadedFileState.status === 'idle' || isProcessingGlobal) {
+        return null;
     }
-    // This shows if a file is selected, regardless of global processing state
-    // Remove button is disabled if globally processing.
+    // Shows when a file is selected (status 'uploading' or 'success' or 'error' from dropzone) AND not globally processing
     return (
       <div className="p-4 border rounded-lg bg-muted/30">
         <div className="flex items-center justify-between">
@@ -77,16 +79,16 @@ export function ExcelUploadTab({
             </div>
           </div>
           <div className="flex items-center space-x-2">
-             {/* Icon logic based on excelValidationState if file processing is complete */}
-            {!isProcessingGlobal && excelValidationState && excelValidationState.isValid && excelValidationState.hasData && (
-              <CheckCircle2 className="w-5 h-5 text-green-500" />
+            {uploadedFileState.status === 'uploading' && !isProcessingGlobal && <Loader2 className="w-5 h-5 text-primary animate-spin" title="File dropzone processing..." />}
+            
+            {/* Icons after worker processing (if not globally processing) */}
+            {uploadedFileState.status === 'success' && !isProcessingGlobal && excelValidationState && excelValidationState.isValid && (
+              <CheckCircle2 className="w-5 h-5 text-green-500" title="File is valid" />
             )}
-            {!isProcessingGlobal && excelValidationState && excelValidationState.error && (
-              <AlertTriangle className="w-5 h-5 text-destructive" />
+            {(uploadedFileState.status === 'error' || (uploadedFileState.status === 'success' && excelValidationState && !excelValidationState.isValid && excelValidationState.error)) && !isProcessingGlobal && (
+              <AlertTriangle className="w-5 h-5 text-destructive" title={uploadedFileState.errorMessage || excelValidationState?.error || "Error"} />
             )}
-            {/* Show loader if dropzone is internally processing, or parent is globally processing THIS file */}
-            {uploadedFileState.status === 'uploading' && <Loader2 className="w-5 h-5 text-primary animate-spin" />}
-
+            
             <Button variant="ghost" size="icon" onClick={handleRemoveFile} disabled={isProcessingGlobal}>
               <XCircle className="w-5 h-5 text-muted-foreground hover:text-destructive" />
             </Button>
@@ -100,121 +102,136 @@ export function ExcelUploadTab({
     );
   };
 
-  const renderValidationAndPreviewSection = () => {
-    // This section is only rendered if global processing is NOT active AND file was "successfully" passed from dropzone,
-    // AND excelValidationState is available (meaning worker processing is done).
+  const renderValidationAndPreview = () => {
     if (isProcessingGlobal || !uploadedFileState || uploadedFileState.status !== 'success' || !excelValidationState) {
       return null;
     }
 
-    // At this point, worker processing is complete. Display based on excelValidationState.
-    if (excelValidationState.error) {
+    // Worker processing is complete. Display based on excelValidationState.
+    if (excelValidationState.error && !excelValidationState.isValid) { // Error that makes it invalid
       return (
         <Card className="border-destructive bg-destructive/10 mt-4">
-          <CardHeader>
+          <CardHeader className="pb-2 pt-4">
             <CardTitle className="flex items-center text-destructive text-base">
               <AlertTriangle className="mr-2 h-5 w-5" />
               Validation Error
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pb-4">
             <p className="text-destructive text-sm">{excelValidationState.error}</p>
             {excelValidationState.previewData && excelValidationState.previewData.length > 0 && (
-              <p className="text-xs text-destructive mt-1">
-                Preview might show partial data. Please check the template and error message.
-              </p>
+                <>
+                    <p className="text-xs text-destructive mt-1">
+                        Preview might show partial or incorrect data.
+                    </p>
+                    {renderPreviewTable(excelValidationState.previewData, excelValidationState.totalDataRows)}
+                </>
             )}
           </CardContent>
         </Card>
       );
     }
 
-    if (!excelValidationState.hasData) { 
+    if (!excelValidationState.hasData && excelValidationState.headersValid) { 
+      // Headers are fine, but no data rows after header
       return (
         <Card className="border-orange-500 bg-orange-500/10 mt-4">
-          <CardHeader>
+          <CardHeader className="pb-2 pt-4">
             <CardTitle className="flex items-center text-orange-600 text-base">
               <AlertTriangle className="mr-2 h-5 w-5" />
-              No Data To Submit
+              No Data Rows Found
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pb-4">
             <p className="text-orange-700 text-sm">
-              The Excel file headers are {excelValidationState.headersValid ? "valid" : "invalid"}, but no actual data rows were found (Total data rows: {excelValidationState.totalDataRows ?? 0}).
-              Please ensure your file contains data after the header row.
+              The Excel file headers are valid, but no data rows were found beneath them. (Total data rows found by worker: {excelValidationState.totalDataRows ?? 0}).
             </p>
+            {excelValidationState.previewData && excelValidationState.previewData.length > 0 && (
+                renderPreviewTable(excelValidationState.previewData, excelValidationState.totalDataRows)
+            )}
           </CardContent>
         </Card>
       );
     }
 
-    // Headers valid, has data, no error -> Show preview
-    if (excelValidationState.isValid && excelValidationState.hasData && excelValidationState.previewData && excelValidationState.previewData.length > 0) {
-      const headers = excelValidationState.previewData[0] || [];
-      const dataRows = excelValidationState.previewData.slice(1);
-
-      return (
-        <div className="space-y-2 mt-4">
-          <h3 className="text-base font-semibold">Data Preview:</h3>
-          <ScrollArea className="border rounded-md shadow-sm bg-card h-[300px] sm:h-[calc(100vh-650px)] md:h-[calc(100vh-550px)] min-h-[200px]">
-            <div className="overflow-auto">
-              <Table className="min-w-full text-sm">
-                <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                  <TableRow>
-                    {headers.map((header, index) => (
-                      <TableHead key={`header-${index}`} className="px-3 py-2 whitespace-nowrap font-semibold">
-                        {String(header) || `Column ${index + 1}`}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {dataRows.map((row, rowIndex) => (
-                    <TableRow key={`row-${rowIndex}`} className={rowIndex % 2 === 1 ? "bg-muted/20" : ""}>
-                      {row.map((cell, cellIndex) => (
-                        <TableCell key={`cell-${rowIndex}-${cellIndex}`} className="px-3 py-1.5 whitespace-nowrap truncate max-w-[180px]">
-                          {String(cell)}
-                        </TableCell>
-                      ))}
-                      {/* Fill empty cells if row has fewer cells than headers */}
-                      {Array.from({ length: Math.max(0, headers.length - row.length) }).map((_, emptyCellIndex) => (
-                        <TableCell key={`empty-${rowIndex}-${emptyCellIndex}`} className="px-3 py-1.5"></TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-            <ScrollBar orientation="horizontal" />
-            <ScrollBar orientation="vertical" />
-          </ScrollArea>
-           {excelValidationState.totalDataRows !== undefined && (
-             <p className="text-xs text-muted-foreground mt-1">
-               Displaying {Math.min(dataRows.length, PREVIEW_ROWS_LIMIT)} row(s) for preview from a total of {excelValidationState.totalDataRows} data row(s) found.
-               All valid rows will be processed upon submission.
-             </p>
-           )}
-        </div>
-      );
+    // Valid and has data -> Show preview
+    if (excelValidationState.isValid && excelValidationState.hasData && excelValidationState.previewData) {
+        // The success toast is shown by InquiryModal
+        return renderPreviewTable(excelValidationState.previewData, excelValidationState.totalDataRows);
     }
     
-    // Fallback for unexpected excelValidationState if not error, no data, or valid preview
-    if (!isProcessingGlobal && uploadedFileState?.status === 'success' && excelValidationState) {
+    // Fallback for unexpected excelValidationState
+    if (uploadedFileState?.status === 'success' && excelValidationState && !isProcessingGlobal) {
         return (
             <Card className="mt-4">
                 <CardContent className="p-4">
                     <p className="text-sm text-muted-foreground">
-                        File processed. Current validation state is unexpected. Please check the file or try again.
+                        File processed. Unexpected validation state. Please check console or retry.
                     </p>
-                    <pre className="text-xs bg-muted p-2 rounded mt-2 overflow-auto">
+                     <pre className="text-xs bg-muted p-2 rounded mt-2 overflow-auto max-h-40">
                         {JSON.stringify(excelValidationState, null, 2)}
                     </pre>
                 </CardContent>
             </Card>
         );
     }
-    return null; // Default return if no other condition is met
+    return null;
   };
+  
+  const renderPreviewTable = (dataForPreviewTable: string[][], totalDataRowsInFile?: number) => {
+    if (!dataForPreviewTable || dataForPreviewTable.length === 0) return null;
+    
+    const headers = dataForPreviewTable[0] || []; 
+    const displayRows = dataForPreviewTable.slice(1); 
+
+    return (
+        <div className="space-y-2 mt-4">
+            <h3 className="text-base font-semibold">Data Preview:</h3>
+            <ScrollArea className="border rounded-md shadow-sm bg-card h-[300px] sm:h-[calc(100vh-650px)] md:h-[calc(100vh-550px)] min-h-[200px]">
+            <div className="overflow-auto">
+                <Table className="min-w-full text-sm">
+                <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                    <TableRow>
+                    {headers.map((header, index) => (
+                        <TableHead key={`header-${index}`} className="px-3 py-2 whitespace-nowrap font-semibold">
+                        {String(header) || `Column ${index + 1}`}
+                        </TableHead>
+                    ))}
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {displayRows.map((row, rowIndex) => (
+                    <TableRow key={`row-${rowIndex}`} className={cn(rowIndex % 2 === 1 ? "bg-muted/20" : "")}>
+                        {row.map((cell, cellIndex) => (
+                        <TableCell key={`cell-${rowIndex}-${cellIndex}`} className="px-3 py-1.5 whitespace-nowrap truncate max-w-[180px]">
+                            {String(cell)}
+                        </TableCell>
+                        ))}
+                        {Array.from({ length: Math.max(0, headers.length - row.length) }).map((_, emptyCellIndex) => (
+                        <TableCell key={`empty-${rowIndex}-${emptyCellIndex}`} className="px-3 py-1.5"></TableCell>
+                        ))}
+                    </TableRow>
+                    ))}
+                </TableBody>
+                </Table>
+            </div>
+            <ScrollBar orientation="horizontal" />
+            <ScrollBar orientation="vertical" />
+            </ScrollArea>
+            {totalDataRowsInFile !== undefined && (
+            <p className="text-xs text-muted-foreground mt-1">
+                Displaying {displayRows.length} row(s) in preview from a total of {totalDataRowsInFile} data row(s) found in the file (after header).
+                All valid data rows will be processed upon submission.
+            </p>
+            )}
+        </div>
+    );
+  };
+
+  // If globally processing, parent modal shows the loader.
+  if (isProcessingGlobal) {
+    return null; 
+  }
 
   return (
     <div className="space-y-4 py-2">
@@ -229,19 +246,16 @@ export function ExcelUploadTab({
           Download Excel Template
         </Button>
       </div>
-
-      {/* Show FileUploadZone only if no file is active OR parent is not globally processing */}
-      {/* Modify this: FileUploadZone should be shown if !uploadedFileState OR if user removed file. */}
-      {/* If uploadedFileState exists, show file info. Parsing UI is handled by InquiryModal header. */}
-
-      {(!uploadedFileState || uploadedFileState.status === 'idle') && !isProcessingGlobal && (
+      
+      {/* Show FileUploadZone only if no file is active */}
+      {(!uploadedFileState || uploadedFileState.status === 'idle') && (
         <FileUploadZone onFileAccepted={onFileChange} isProcessingGlobal={isProcessingGlobal} />
       )}
       
-      {uploadedFileState && uploadedFileState.status !== 'idle' && renderFileInfoSection() }
+      {/* Display file info if a file is present (regardless of processing, parent handles loader) */}
+      {uploadedFileState && uploadedFileState.status !== 'idle' && renderFileInfo()}
 
-      {/* Validation/Preview section is rendered based on its own internal logic using props */}
-      {renderValidationAndPreviewSection()}
+      {renderValidationAndPreview()}
     </div>
   );
 }

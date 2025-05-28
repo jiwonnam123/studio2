@@ -4,31 +4,32 @@ export interface UploadedFile {
   name: string;
   size: number;
   type: string;
-  preview?: string;
   status: 'idle' | 'uploading' | 'success' | 'error';
   errorMessage?: string;
 }
 
-// 워커가 메인 스레드로 보내는 메시지 구조
+// Message structure from Worker to Main Thread
 export interface WorkerParseResponse {
-  success: boolean; // 전체적인 처리 성공 여부 (헤더 유효, 데이터 처리 시도 등)
+  success: boolean; // Overall success (headers valid, data exists, no critical errors)
   error: string | null;
-  previewData: string[][] | null; // UI 미리보기용 데이터 (제한된 행)
-  totalDataRows: number; // 헤더를 제외한 실제 데이터 행 수
+  previewData: string[][] | null;   // For UI: headers + limited data rows (first N rows, 6 columns)
+  fullData: string[][] | null;      // For submission: all data rows (6 columns, no headers)
+  totalDataRows: number;            // Total number of data rows found (excluding header, from fullData)
   headersValid: boolean;
-  dataExistsInSheet: boolean; // 실제 데이터 행이 존재하는지 여부
+  dataExistsInSheet: boolean;       // Based on totalDataRows > 0
   fileSize: number;
   processingTime?: number;
   isLargeFile?: boolean;
 }
 
-// InquiryModal에서 관리하는 Excel 유효성 검사 결과 상태
+// State managed by InquiryModal for Excel validation results
 export interface ExcelValidationResult {
+  isValid: boolean; // Corresponds to WorkerParseResponse.success
   error: string | null;
-  hasData: boolean; // WorkerParseResponse의 dataExistsInSheet에 해당
-  isValid: boolean; // WorkerParseResponse의 success에 해당
-  totalDataRows?: number;
+  hasData: boolean; // Corresponds to WorkerParseResponse.dataExistsInSheet
   previewData?: string[][] | null;
+  fullData?: string[][] | null;
+  totalDataRows?: number;
   fileSize?: number;
   processingTime?: number;
   isLargeFile?: boolean;
