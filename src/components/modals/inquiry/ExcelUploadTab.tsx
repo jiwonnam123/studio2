@@ -5,7 +5,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Download, AlertTriangle, CheckCircle2, FileText, XCircle, Loader2 } from 'lucide-react';
 import { FileUploadZone } from './FileUploadZone';
-import type { UploadedFile, ExcelValidationResult, WorkerParseResponse } from '@/types/inquiry';
+import type { UploadedFile, ExcelValidationResult } from '@/types';
 import {
   Table,
   TableBody,
@@ -19,10 +19,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { cn } from '@/lib/utils';
 
 interface ExcelUploadTabProps {
-  uploadedFileState: UploadedFile | null;
   onFileChange: (file: UploadedFile | null) => void;
+  isProcessingGlobal: boolean;
+  uploadedFileState: UploadedFile | null;
   excelValidationState: ExcelValidationResult | null;
-  isProcessingGlobal: boolean; // Global processing state from InquiryModal
 }
 
 const formatBytes = (bytes: number, decimals = 2) => {
@@ -35,15 +35,16 @@ const formatBytes = (bytes: number, decimals = 2) => {
 };
 
 export function ExcelUploadTab({
-  uploadedFileState,
   onFileChange,
-  excelValidationState,
   isProcessingGlobal,
+  uploadedFileState,
+  excelValidationState,
 }: ExcelUploadTabProps) {
   
   const renderTime = new Date().toISOString();
-  console.log(`[ExcelUploadTab 렌더링 ${renderTime}] Props:`, { 
-    isProcessingGlobal, 
+  console.log(`ExcelUploadTab Rendering. Props:`, { 
+    renderTime,
+    isProcessing: isProcessingGlobal, 
     uploadedFileStateStatus: uploadedFileState?.status, 
     excelError: excelValidationState?.error, 
     excelHasData: excelValidationState?.hasData,
@@ -62,7 +63,7 @@ export function ExcelUploadTab({
 
   const handleRemoveFile = () => {
     if (!isProcessingGlobal) {
-      console.log("[ExcelUploadTab handleRemoveFile] onFileChange(null) 호출 중");
+      console.log("[ExcelUploadTab handleRemoveFile] Calling onFileChange(null)");
       onFileChange(null); 
     }
   };
@@ -164,6 +165,7 @@ export function ExcelUploadTab({
         return renderPreviewTable(excelValidationState.previewData, excelValidationState.totalDataRows);
     }
     
+    // Fallback for unexpected states, can be more specific if needed
     if (uploadedFileState?.status === 'success' && excelValidationState) {
         return (
             <Card className="mt-0">
@@ -210,6 +212,7 @@ export function ExcelUploadTab({
                             {String(cell)}
                         </TableCell>
                         ))}
+                        {/* Ensure all rows have the same number of cells as headers for consistent layout */}
                         {Array.from({ length: Math.max(0, headers.length - row.length) }).map((_, emptyCellIndex) => (
                            <TableCell key={`empty-${rowIndex}-${emptyCellIndex}`} className="px-3 py-1.5"></TableCell>
                         ))}
@@ -241,7 +244,7 @@ export function ExcelUploadTab({
           disabled={isProcessingGlobal} 
         >
           <Download className="mr-2 h-4 w-4" />
-          Excel 템플릿 다운로드
+          excel 양식
         </Button>
       </div>
       
