@@ -2,7 +2,7 @@
 "use client";
 
 import type React from 'react';
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { UploadCloud, FileText, XCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,9 +11,7 @@ import type { UploadedFile } from '@/types/inquiry';
 import { cn } from '@/lib/utils';
 
 interface FileUploadZoneProps {
-  onFileAccepted: (file: UploadedFile) => void;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  onUploadError?: (error: string) => void; // Placeholder for future error handling
+  onFileAccepted: (file: UploadedFile | null) => void;
 }
 
 const formatBytes = (bytes: number, decimals = 2) => {
@@ -26,45 +24,56 @@ const formatBytes = (bytes: number, decimals = 2) => {
 };
 
 export function FileUploadZone({ onFileAccepted }: FileUploadZoneProps) {
-  const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
-  const [isUploading, setIsUploading] = useState(false); // Simulate upload progress
+  const [internalUploadedFile, setInternalUploadedFile] = useState<UploadedFile | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false); // General processing state for dropzone
 
   const onDrop = useCallback((acceptedFiles: File[], fileRejections: any[]) => {
+    setIsProcessing(true);
     if (fileRejections.length > 0) {
-      const rejectionReason = fileRejections[0].errors[0].message;
-      setUploadedFile({
-        file: fileRejections[0].file,
-        name: fileRejections[0].file.name,
-        size: fileRejections[0].file.size,
-        type: fileRejections[0].file.type,
+      const rejection = fileRejections[0];
+      const firstError = rejection.errors[0];
+      let errorMessage = "Invalid file.";
+      if (firstError.code === 'file-too-large') {
+          errorMessage = `File is too large. Max size is ${formatBytes(5 * 1024 * 1024)}.`;
+      } else if (firstError.code === 'file-invalid-type') {
+          errorMessage = "Invalid file type. Please upload .xlsx, .xls, or .csv files.";
+      }
+      setInternalUploadedFile({
+        file: rejection.file,
+        name: rejection.file.name,
+        size: rejection.file.size,
+        type: rejection.file.type,
         status: 'error',
-        errorMessage: rejectionReason,
+        errorMessage: errorMessage,
       });
+      setIsProcessing(false);
       return;
     }
 
     if (acceptedFiles.length > 0) {
       const file = acceptedFiles[0];
-      const newFile: UploadedFile = {
+      setInternalUploadedFile({
         file,
         name: file.name,
         size: file.size,
         type: file.type,
-        status: 'idle',
-      };
-      setUploadedFile(newFile);
-      onFileAccepted(newFile); // Notify parent, actual upload logic would be here or in parent
+        status: 'uploading', // Start with uploading status
+      });
 
-      // Simulate upload
-      setIsUploading(true);
-      setUploadedFile(prev => prev ? {...prev, status: 'uploading'} : null);
+      // Simulate upload process
       setTimeout(() => {
-        setIsUploading(false);
-        // Simulate success, in real app this depends on server response
-        setUploadedFile(prev => prev ? {...prev, status: 'success'} : null); 
-      }, 2000); 
+        setInternalUploadedFile(prev => prev ? {...prev, status: 'success'} : null);
+        setIsProcessing(false);
+      }, 1500); // Simulating network delay
+    } else {
+      setIsProcessing(false); // No files accepted
     }
-  }, [onFileAccepted]);
+  }, []);
+
+  useEffect(() => {
+    // Propagate changes of internalUploadedFile to the parent
+    onFileAccepted(internalUploadedFile);
+  }, [internalUploadedFile, onFileAccepted]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -75,30 +84,12 @@ export function FileUploadZone({ onFileAccepted }: FileUploadZoneProps) {
       'text/csv': ['.csv'],
     },
     maxSize: 5 * 1024 * 1024, // 5MB limit
-    onDropRejected: (fileRejections) => {
-       if (fileRejections.length > 0) {
-        const firstError = fileRejections[0].errors[0];
-        let errorMessage = "Invalid file.";
-        if (firstError.code === 'file-too-large') {
-            errorMessage = `File is too large. Max size is ${formatBytes(5 * 1024 * 1024)}.`;
-        } else if (firstError.code === 'file-invalid-type') {
-            errorMessage = "Invalid file type. Please upload .xlsx, .xls, or .csv files.";
-        }
-        setUploadedFile({
-          file: fileRejections[0].file,
-          name: fileRejections[0].file.name,
-          size: fileRejections[0].file.size,
-          type: fileRejections[0].file.type,
-          status: 'error',
-          errorMessage: errorMessage,
-        });
-      }
-    }
+    disabled: isProcessing, // Disable dropzone while processing or "uploading"
   });
 
   const removeFile = () => {
-    setUploadedFile(null);
-    // Potentially call a prop to notify parent of removal
+    setInternalUploadedFile(null);
+    // onFileAccepted(null) will be called by the useEffect above
   };
 
   return (
@@ -108,13 +99,21 @@ export function FileUploadZone({ onFileAccepted }: FileUploadZoneProps) {
         className={cn(
           "flex flex-col items-center justify-center w-full h-[185px] border-2 border-dashed rounded-lg cursor-pointer transition-colors",
           isDragActive ? "border-primary bg-primary/10" : "border-border hover:border-primary/70",
-          uploadedFile?.status === 'error' ? "border-destructive bg-destructive/10" : ""
+          internalUploadedFile?.status === 'error' ? "border-destructive bg-destructive/10" : "",
+          isProcessing ? "cursor-default opacity-70" : ""
         )}
       >
         <input {...getInputProps()} />
-        <UploadCloud className={cn("w-10 h-10 mb-3", isDragActive ? "text-primary" : "text-muted-foreground")} />
+        {isProcessing && internalUploadedFile?.status === 'uploading' ? (
+            <Loader2 className="w-10 h-10 mb-3 text-primary animate-spin" />
+        ) : (
+            <UploadCloud className={cn("w-10 h-10 mb-3", isDragActive ? "text-primary" : "text-muted-foreground")} />
+        )}
+        
         {isDragActive ? (
           <p className="text-lg font-semibold text-primary">Drop the file here ...</p>
+        ) : isProcessing && internalUploadedFile?.status === 'uploading' ? (
+          <p className="text-sm text-primary">Processing file...</p>
         ) : (
           <>
             <p className="mb-2 text-sm text-muted-foreground">
@@ -124,39 +123,38 @@ export function FileUploadZone({ onFileAccepted }: FileUploadZoneProps) {
           </>
         )}
       </div>
-      {/* "Select File" button has been removed as requested */}
 
-      {uploadedFile && (
+      {internalUploadedFile && (
         <div className="p-4 border rounded-lg bg-muted/30">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <FileText className="w-6 h-6 text-primary" />
               <div>
                 <p className="text-sm font-medium text-foreground truncate max-w-[200px] sm:max-w-xs md:max-w-sm">
-                  {uploadedFile.name}
+                  {internalUploadedFile.name}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {formatBytes(uploadedFile.size)}
+                  {formatBytes(internalUploadedFile.size)}
                 </p>
               </div>
             </div>
             <div className="flex items-center space-x-2">
-                {uploadedFile.status === 'uploading' && <Loader2 className="w-5 h-5 text-primary animate-spin" />}
-                {uploadedFile.status === 'success' && <CheckCircle2 className="w-5 h-5 text-green-500" />}
-                {uploadedFile.status === 'error' && <XCircle className="w-5 h-5 text-destructive" />}
-                 <Button variant="ghost" size="icon" onClick={removeFile}>
+                {internalUploadedFile.status === 'uploading' && <Loader2 className="w-5 h-5 text-primary animate-spin" />}
+                {internalUploadedFile.status === 'success' && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+                {internalUploadedFile.status === 'error' && <XCircle className="w-5 h-5 text-destructive" />}
+                 <Button variant="ghost" size="icon" onClick={removeFile} disabled={isProcessing && internalUploadedFile.status === 'uploading'}>
                     <XCircle className="w-5 h-5 text-muted-foreground hover:text-destructive" />
                  </Button>
             </div>
           </div>
-          {uploadedFile.status === 'uploading' && (
-            <Progress value={50} className="h-1 mt-2" /> // Simulate progress
+          {internalUploadedFile.status === 'uploading' && (
+            <Progress value={50} className="h-1 mt-2" /> 
           )}
-          {uploadedFile.status === 'error' && uploadedFile.errorMessage && (
-            <p className="text-xs text-destructive mt-1">{uploadedFile.errorMessage}</p>
+          {internalUploadedFile.status === 'error' && internalUploadedFile.errorMessage && (
+            <p className="text-xs text-destructive mt-1">{internalUploadedFile.errorMessage}</p>
           )}
-           {uploadedFile.status === 'success' && (
-             <p className="text-xs text-green-600 mt-1">File ready for submission.</p>
+           {internalUploadedFile.status === 'success' && (
+             <p className="text-xs text-green-600 mt-1">File ready for validation and preview.</p>
            )}
         </div>
       )}

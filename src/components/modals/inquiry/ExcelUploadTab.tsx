@@ -19,8 +19,12 @@ import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface ExcelUploadTabProps {
-  uploadedFileState: UploadedFile | null; // Renamed to avoid conflict
-  onFileAccepted: (file: UploadedFile) => void;
+  uploadedFileState: UploadedFile | null;
+  // This prop is actually set by InquiryModal's handleFileAccepted.
+  // The name mismatch might have been an issue. However, ExcelUploadTab only *receives* the state.
+  // For clarity, let's ensure the prop name used here matches what InquiryModal passes.
+  // InquiryModal passes uploadedFile to ExcelUploadTab as uploadedFileState, which is correct.
+  // onFileAccepted is passed from InquiryModal to FileUploadZone.
 }
 
 const customColumnHeaders = [
@@ -32,9 +36,9 @@ const customColumnHeaders = [
   "비고"
 ];
 
-const MAX_PREVIEW_ROWS = 10; // Maximum number of data rows to show in preview
+const MAX_PREVIEW_ROWS = 10; 
 
-export function ExcelUploadTab({ uploadedFileState, onFileAccepted }: ExcelUploadTabProps) {
+export function ExcelUploadTab({ uploadedFileState }: ExcelUploadTabProps) {
   const [previewData, setPreviewData] = useState<string[][] | null>(null);
   const [isParsing, setIsParsing] = useState(false);
   const [parseError, setParseError] = useState<string | null>(null);
@@ -76,15 +80,12 @@ export function ExcelUploadTab({ uploadedFileState, onFileAccepted }: ExcelUploa
           if (headersFromExcel.length !== customColumnHeaders.length || 
               !headersFromExcel.every((header, index) => header?.trim() === customColumnHeaders[index]?.trim())) {
             setParseError(`Invalid headers. Expected: "${customColumnHeaders.join(", ")}". Found: "${headersFromExcel.join(", ")}". Please use the provided template.`);
-            setIsParsing(false);
             // Still show preview of what was parsed, if possible
-            setPreviewData(jsonData.slice(0, MAX_PREVIEW_ROWS + 1)); // show headers + N rows
-            return;
+            setPreviewData(jsonData.slice(0, MAX_PREVIEW_ROWS + 1)); 
+          } else {
+            setPreviewData(jsonData); 
+            setParseError(null); 
           }
-          
-          setPreviewData(jsonData); // Show all data if headers are valid
-          setParseError(null); // Clear any previous error if parsing is successful
-
         } catch (e: any) {
           console.error("Error parsing Excel file:", e);
           setParseError(`Error parsing Excel file: ${e.message || 'Unknown error'}`);
@@ -98,7 +99,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileAccepted }: ExcelUploa
         setIsParsing(false);
       };
       reader.readAsArrayBuffer(file);
-    } catch (e: any) {
+    } catch (e: any) => {
       console.error("Error initiating file read:", e);
       setParseError(`Error reading file: ${e.message}`);
       setIsParsing(false);
@@ -109,7 +110,6 @@ export function ExcelUploadTab({ uploadedFileState, onFileAccepted }: ExcelUploa
     if (uploadedFileState && uploadedFileState.file && uploadedFileState.status === 'success') {
       processFile(uploadedFileState.file);
     } else if (!uploadedFileState || uploadedFileState.status === 'idle' || uploadedFileState.status === 'error'){
-        // Clear preview if file is removed or has an upload error
         setPreviewData(null);
         setParseError(null);
         setIsParsing(false);
@@ -125,7 +125,13 @@ export function ExcelUploadTab({ uploadedFileState, onFileAccepted }: ExcelUploa
         </Button>
       </div>
       
-      <FileUploadZone onFileAccepted={onFileAccepted} />
+      {/* FileUploadZone is now part of InquiryModal's direct children, not ExcelUploadTab's. 
+          This component now only *reacts* to uploadedFileState.
+          The InquiryModal will pass onFileAccepted to FileUploadZone.
+          So, FileUploadZone should NOT be rendered here.
+      */}
+      {/* <FileUploadZone onFileAccepted={onFileAccepted} />  <- This was a mistake, onFileAccepted is not a prop here */}
+
 
       {isParsing && (
         <div className="flex items-center justify-center p-4 text-muted-foreground">
@@ -171,7 +177,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileAccepted }: ExcelUploa
       {previewData && previewData.length > 0 && !isParsing && (
         <div className="space-y-2 mt-4">
           <h3 className="text-lg font-semibold">Parsed Data Preview:</h3>
-          <ScrollArea className="border rounded-md shadow-sm bg-card h-[300px]"> {/* Fixed height for scroll area */}
+          <ScrollArea className="border rounded-md shadow-sm bg-card h-[300px]"> 
             <div className="overflow-auto">
               <Table className="min-w-full text-sm">
                 <TableHeader className="bg-muted/50 sticky top-0 z-10">
@@ -184,14 +190,13 @@ export function ExcelUploadTab({ uploadedFileState, onFileAccepted }: ExcelUploa
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {previewData.slice(1, MAX_PREVIEW_ROWS + 1).map((row, rowIndex) => ( // Display MAX_PREVIEW_ROWS data rows
+                  {previewData.slice(1, MAX_PREVIEW_ROWS + 1).map((row, rowIndex) => ( 
                     <TableRow key={`row-${rowIndex}`} className={rowIndex % 2 === 1 ? "bg-muted/20" : ""}>
                       {row.map((cell, cellIndex) => (
                         <TableCell key={`cell-${rowIndex}-${cellIndex}`} className="px-3 py-1.5 whitespace-nowrap truncate max-w-[200px]">
                           {String(cell)}
                         </TableCell>
                       ))}
-                      {/* Fill empty cells if row has fewer columns than header */}
                       {Array.from({ length: Math.max(0, previewData[0].length - row.length) }).map((_, emptyCellIndex) => (
                         <TableCell key={`empty-${rowIndex}-${emptyCellIndex}`} className="px-3 py-1.5 whitespace-nowrap truncate max-w-[200px]"></TableCell>
                       ))}
@@ -210,6 +215,17 @@ export function ExcelUploadTab({ uploadedFileState, onFileAccepted }: ExcelUploa
         )}
         </div>
       )}
+
+      {/* Show this if a file is uploaded but no preview data and not parsing and no error. Could mean file status is not 'success' yet or file is empty. */}
+      {uploadedFileState && !previewData && !isParsing && !parseError && (
+        <div className="flex flex-col items-center justify-center p-4 text-muted-foreground border-2 border-dashed rounded-lg min-h-[100px]">
+            <FileText className="w-8 h-8 mb-2"/>
+            {uploadedFileState.status === 'uploading' && <p>File is processing...</p>}
+            {uploadedFileState.status === 'idle' && <p>File selected. Waiting for processing.</p>}
+            {uploadedFileState.status !== 'uploading' && uploadedFileState.status !== 'idle' &&  <p>No data to preview or file is empty.</p>}
+        </div>
+      )}
+
     </div>
   );
 }

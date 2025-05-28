@@ -31,7 +31,7 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleFileAccepted = (file: UploadedFile) => {
+  const handleFileAccepted = (file: UploadedFile | null) => {
     setUploadedFile(file);
   };
 
@@ -42,8 +42,8 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
 
     if (activeTab === 'excel') {
       if (uploadedFile && uploadedFile.status === 'success') {
-        // Here, you might want to add a check if parsing was also successful
-        // For now, relies on FileUploadZone's 'success' status
+        // Here, you might want to add a check if parsing was also successful from ExcelUploadTab
+        // For now, relies on FileUploadZone's 'success' status which means it's ready for parsing
         console.log('Submitting Excel file:', uploadedFile.name);
         toast({
           title: "Inquiry Submitted (Excel)",
@@ -109,7 +109,7 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
             <TabsContent value="excel" className="mt-0">
               <ExcelUploadTab 
                 uploadedFileState={uploadedFile} 
-                onFileAccepted={handleFileAccepted} 
+                onFileAccepted={handleFileAccepted} // This prop name was mismatched in ExcelUploadTab, correcting ExcelUploadTab to expect `uploadedFileState`
               />
             </TabsContent>
             <TabsContent value="direct" className="mt-0">
@@ -118,7 +118,7 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
           </div>
         </Tabs>
         
-        <DialogFooter className="p-6 border-t bg-muted/30 flex-shrink-0 flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-0">
+        <DialogFooter className="p-6 border-t bg-muted/30 flex-shrink-0">
           <Button 
             onClick={handleSubmitInquiry} 
             className="w-full sm:w-auto" 
