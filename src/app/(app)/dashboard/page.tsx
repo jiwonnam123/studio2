@@ -30,7 +30,7 @@ import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'fireba
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useRouter } from 'next/navigation'; // Added for router push
+// import { useRouter } from 'next/navigation'; // No longer needed for router.push for legacy form creation
 
 const FORMS_STORAGE_KEY = 'formflow_forms';
 
@@ -42,7 +42,7 @@ export default function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [mounted, setMounted] = useState(false);
   const [isInquiryModalOpen, setIsInquiryModalOpen] = useState(false);
-  const router = useRouter(); // Initialize router
+  // const router = useRouter(); // No longer needed
 
   useEffect(() => {
     setMounted(true); 
@@ -127,6 +127,7 @@ export default function DashboardPage() {
        <div className="space-y-8 p-4 md:p-6">
         <div className="flex items-center justify-between">
           <Skeleton className="h-10 w-1/3 rounded" />
+           <Skeleton className="h-10 w-36 rounded" /> 
         </div>
          <div className="animate-pulse space-y-2">
             <Skeleton className="h-8 w-1/4 rounded" />
@@ -170,7 +171,9 @@ export default function DashboardPage() {
               Manage, edit, and view submissions for your legacy forms.
             </p>
           </div>
-          {/* Removed the legacy "Create New Form" button that used router.push */}
+          <Button onClick={() => setIsInquiryModalOpen(true)}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Submit New Inquiry
+          </Button>
         </div>
 
         <div className="flex items-center gap-2 mb-6">
@@ -194,11 +197,9 @@ export default function DashboardPage() {
             <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
             <h3 className="mt-2 text-xl font-semibold">No Legacy Forms Created Yet</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Legacy forms are managed via local storage.
+              Legacy forms are managed via local storage. Use the "Submit New Inquiry" button above to get started with the new system.
             </p>
-             <Button variant="link" className="p-0 h-auto text-base mt-2" onClick={() => router.push('/forms/create')}>
-              Create a new legacy form
-            </Button>
+            {/* Removed legacy form creation link */}
           </div>
         ) : filteredForms.length === 0 && searchTerm ? (
            <div className="text-center py-10">
@@ -272,9 +273,7 @@ export default function DashboardPage() {
               View and manage your submitted inquiry data.
             </p>
           </div>
-           <Button onClick={() => setIsInquiryModalOpen(true)}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Submit New Inquiry
-          </Button>
+           {/* Removed the "Submit New Inquiry" button from here */}
         </div>
 
         {isLoadingInquiries ? (
@@ -288,7 +287,7 @@ export default function DashboardPage() {
             <ListChecks className="mx-auto h-12 w-12 text-muted-foreground" />
             <h3 className="mt-2 text-xl font-semibold">No Inquiries Submitted Yet</h3>
             <p className="mt-1 text-sm text-muted-foreground">
-              Use the button above to submit your first inquiry.
+              Use the "Submit New Inquiry" button in the "My Forms (Legacy)" section above to submit your first inquiry.
             </p>
           </div>
         ) : (
@@ -350,3 +349,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+
