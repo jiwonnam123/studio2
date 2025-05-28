@@ -4,15 +4,22 @@ export interface UploadedFile {
   name: string;
   size: number;
   type: string;
-  status: 'idle' | 'success' | 'error'; // Removed 'uploading' as it's too brief
+  status: 'idle' | 'success' | 'error';
   errorMessage?: string;
 }
 
 // Message structure from Worker to Main Thread
+export interface WorkerParseRequest { // Added for clarity, assuming worker receives this
+  file: File;
+}
+
 export interface WorkerParseResponse {
-  success: boolean; // Overall success (headers valid, data exists, no critical errors)
+  type?: 'progress' | 'result'; // Added for progress reporting
+  stage?: string;               // Added for progress reporting
+  progress?: number;            // Added for progress reporting
+  success: boolean;
   error: string | null;
-  previewData: string[][] | null;   // For UI: headers + limited data rows
+  previewData: string[][] | null;
   fullData: string[][] | null;      // For submission: all data rows (6 columns, no headers)
   totalDataRows: number;            // Total number of data rows found (excluding header)
   headersValid: boolean;
@@ -30,7 +37,7 @@ export interface ExcelValidationResult {
   previewData?: string[][] | null;
   fullData?: string[][] | null;
   totalDataRows?: number;
-  headersValid?: boolean; // Added from worker response
+  headersValid?: boolean;
   // Performance related
   fileSize?: number;
   processingTime?: number;
