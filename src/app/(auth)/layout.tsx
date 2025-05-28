@@ -26,6 +26,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     );
   }
 
+  // If authenticated, we want to show a loading state while redirecting,
+  // instead of briefly flashing the login/register page.
   if (isAuthenticated) {
     return (
          <div className="flex h-screen w-screen items-center justify-center bg-background">
@@ -42,8 +44,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
           <Image
             src="/adpopcorn-logo.svg"
             alt="Adpopcorn Logo"
-            width={400}
-            height={60}
+            width={200}
+            height={30}
             priority 
           />
         </Link>
@@ -57,3 +59,4 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     </div>
   );
 }
+
