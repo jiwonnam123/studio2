@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +38,7 @@ const GoogleIcon = () => (
 
 export function LoginForm() {
   const { login, loginWithGoogle } = useAuth();
+  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
 
@@ -51,11 +53,12 @@ export function LoginForm() {
   async function onSubmit(data: z.infer<typeof LoginSchema>) {
     setIsSubmitting(true);
     try {
-      await login(data.email, data.password); 
+      await login(data.email, data.password);
       toast({
         title: "Login Successful",
         description: "Welcome back!",
       });
+      // router.push('/dashboard'); // Removed, navigation handled by AuthContext listener
     } catch (error: any) {
       let errorMessage = "An unexpected error occurred.";
       if (error.code) {
@@ -93,15 +96,16 @@ export function LoginForm() {
         title: "Google Login Successful",
         description: "Welcome!",
       });
+      // router.push('/dashboard'); // Removed, navigation handled by AuthContext listener
     } catch (error: any) {
       let errorMessage = "Google login failed. Please try again.";
       if (error.code) {
         switch (error.code) {
           case 'auth/popup-closed-by-user':
-            errorMessage = "Login cancelled. The Google sign-in popup was closed. If you didn't close it manually, please check if your browser is blocking popups or restricting third-party cookies for this site. Some browser extensions can also interfere.";
+            errorMessage = "Login cancelled. The Google sign-in popup was closed. This may be due to browser security policies, popup blockers, or third-party cookie restrictions. Please check your browser settings and try again.";
             break;
           case 'auth/cancelled-popup-request':
-             errorMessage = "Login cancelled. This might happen if multiple popups were opened, the request was cancelled, or due to browser security settings (like popup or third-party cookie restrictions). Please try again, ensuring only one login attempt is active.";
+             errorMessage = "Login cancelled. This might happen if multiple popups were opened or due to browser security settings (like popup or third-party cookie restrictions, or Cross-Origin-Opener-Policy). Please try again, ensuring only one login attempt is active.";
             break;
           case 'auth/popup-blocked-by-browser':
             errorMessage = "Login failed. Please enable popups for this site to sign in with Google.";
@@ -109,7 +113,7 @@ export function LoginForm() {
           case 'auth/account-exists-with-different-credential':
             errorMessage = "An account already exists with this email but used a different sign-in method. Try that method, or use a different Google account.";
             break;
-          case 'auth/unauthorized-domain': // This case was added previously
+          case 'auth/unauthorized-domain':
             errorMessage = "Login failed. This website's domain is not authorized for Google Sign-In. Please contact the site administrator or check Firebase project settings if you are the developer.";
             break;
           case 'auth/operation-not-allowed':
