@@ -3,6 +3,28 @@
 @tailwind utilities;
 
 @layer base {
+  /* Responsive html font-size for consistent scaling */
+  html {
+    /* Default font size for very small screens */
+    font-size: 13px;
+  }
+
+  /* Responsive font size for screens between 360px and 1280px */
+  /* This formula linearly scales font-size from 13px at 360px vw to 16px at 1280px vw. */
+  @media (min-width: 360px) and (max-width: 1279.98px) {
+    html {
+      font-size: calc(13px + (16 - 13) * ((100vw - 360px) / (1280 - 360)));
+    }
+  }
+
+  /* Font size for larger screens (1280px and up) */
+  @media (min-width: 1280px) {
+    html {
+      font-size: 16px; /* Standard base font size for desktop */
+    }
+  }
+
+  /* CSS Custom Properties (Theme Variables) */
   :root {
     --background: 0 0% 96%; /* Pale Grey #F5F5F5 */
     --foreground: 210 10% 23%; /* Darker Muted Blue for text */
@@ -96,9 +118,8 @@
     --chart-4: 280 65% 60%;
     --chart-5: 340 75% 55%;
   }
-}
 
-@layer base {
+  /* Global Styles */
   * {
     @apply border-border;
   }
