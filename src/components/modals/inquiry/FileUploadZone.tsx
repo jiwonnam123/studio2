@@ -7,7 +7,6 @@ import { useDropzone, type Accept } from 'react-dropzone';
 import { UploadCloud, Loader2, CheckCircle2, AlertTriangle, FileText, XCircle } from 'lucide-react';
 import type { UploadedFile } from '@/types/inquiry';
 import { cn } from '@/lib/utils';
-// Button component is not used here anymore
 
 const formatBytes = (bytes: number, decimals = 2) => {
   if (!bytes || bytes === 0) return '0 Bytes';
@@ -21,7 +20,7 @@ const formatBytes = (bytes: number, decimals = 2) => {
 const acceptFileTypes: Accept = {
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
   'application/vnd.ms-excel': ['.xls'],
-  // 'text/csv': ['.csv'], // CSV handling not explicitly in worker yet
+  'text/csv': ['.csv'], // Added CSV support
 };
 
 const MAX_FILE_SIZE_MB = 5;
@@ -29,7 +28,7 @@ const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
 interface FileUploadZoneProps {
   onFileAccepted: (file: UploadedFile | null) => void;
-  disabled?: boolean; // Renamed from parentIsProcessing for clarity
+  disabled?: boolean;
 }
 
 export function FileUploadZone({ onFileAccepted, disabled = false }: FileUploadZoneProps) {
@@ -50,13 +49,13 @@ export function FileUploadZone({ onFileAccepted, disabled = false }: FileUploadZ
         if (firstError.code === 'file-too-large') {
           errorMessage = `File is too large. Max size is ${MAX_FILE_SIZE_MB}MB.`;
         } else if (firstError.code === 'file-invalid-type') {
-          errorMessage = "Invalid file type. Please upload .xlsx or .xls files.";
+          errorMessage = "Invalid file type. Please upload .xlsx, .xls, or .csv files.";
         } else {
           errorMessage = firstError.message || "File rejected.";
         }
         
         const errorFile: UploadedFile = {
-          file: rejection.file, // fileRejection.file contains the File object
+          file: rejection.file,
           name: rejection.file.name,
           size: rejection.file.size,
           type: rejection.file.type,
@@ -70,7 +69,6 @@ export function FileUploadZone({ onFileAccepted, disabled = false }: FileUploadZ
 
       if (acceptedFiles.length > 0) {
         const file = acceptedFiles[0];
-        // File is accepted by dropzone, immediately set status to 'success' for parent to pick up
         const successFile: UploadedFile = {
           file,
           name: file.name,
@@ -82,8 +80,6 @@ export function FileUploadZone({ onFileAccepted, disabled = false }: FileUploadZ
         onFileAccepted(successFile);
       } else {
         console.log("[FileUploadZone] No files to process after drop (neither accepted nor rejected with specific error).");
-        // This case should ideally not happen if dropzone is active and gets a file
-        // but if it does, call with null or an error state
         onFileAccepted(null); 
       }
     },
@@ -120,7 +116,7 @@ export function FileUploadZone({ onFileAccepted, disabled = false }: FileUploadZ
       )}
     >
       <input {...getInputProps()} />
-      {disabled ? ( // Show loader if parent (InquiryModal) is processing
+      {disabled ? (
         <Loader2 className="w-10 h-10 mb-3 text-primary animate-spin" />
       ) : (
         <UploadCloud className={cn("w-10 h-10 mb-3", isDragActive ? "text-primary" : "text-muted-foreground")} />
@@ -135,7 +131,7 @@ export function FileUploadZone({ onFileAccepted, disabled = false }: FileUploadZ
           <p className="mb-2 text-sm text-muted-foreground">
             <span className="font-semibold text-primary">Click to upload</span> or drag and drop
           </p>
-          <p className="text-xs text-muted-foreground">XLSX or XLS (MAX. {MAX_FILE_SIZE_MB}MB)</p>
+          <p className="text-xs text-muted-foreground">XLSX, XLS, or CSV (MAX. {MAX_FILE_SIZE_MB}MB)</p>
         </>
       )}
     </div>
