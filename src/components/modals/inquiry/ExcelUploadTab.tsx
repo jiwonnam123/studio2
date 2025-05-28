@@ -20,8 +20,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface ExcelUploadTabProps {
   uploadedFileState: UploadedFile | null;
-  onFileChange: (file: UploadedFile | null) => void; // Callback to update file in modal
-  onValidationComplete: (result: ExcelValidationResult) => void; // Callback for validation result
+  onFileChange: (file: UploadedFile | null) => void;
+  onValidationComplete: (result: ExcelValidationResult) => void;
 }
 
 const customColumnHeaders = [
@@ -38,7 +38,7 @@ const MAX_PREVIEW_ROWS = 10;
 export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationComplete }: ExcelUploadTabProps) {
   const [previewData, setPreviewData] = useState<string[][] | null>(null);
   const [isParsing, setIsParsing] = useState(false);
-  // parseError state is now managed by onValidationComplete communication to parent
+  // parseError state is now handled by onValidationComplete communication to parent
 
   const handleDownloadTemplate = () => {
     const link = document.createElement('a');
@@ -50,6 +50,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
   };
 
   const processFile = useCallback(async (file: File) => {
+    if (isParsing) return; // Prevent re-processing if already parsing
     setIsParsing(true);
     setPreviewData(null);
     let validationResult: ExcelValidationResult = { error: null, hasData: false };
@@ -64,6 +65,9 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
           }
           const workbook = XLSX.read(arrayBuffer, { type: 'array' });
           const sheetName = workbook.SheetNames[0];
+          if (!sheetName) {
+             throw new Error("No sheets found in the Excel file.");
+          }
           const worksheet = workbook.Sheets[sheetName];
           const jsonData = XLSX.utils.sheet_to_json<any>(worksheet, { header: 1, blankrows: false });
 
@@ -71,7 +75,9 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
             validationResult = { error: "The Excel file is empty or could not be read.", hasData: false };
           } else {
             const headersFromExcel = jsonData[0] as string[];
-            if (headersFromExcel.length !== customColumnHeaders.length || 
+            if (!headersFromExcel || headersFromExcel.length === 0) {
+                validationResult = { error: "The Excel file is missing headers.", hasData: false };
+            } else if (headersFromExcel.length !== customColumnHeaders.length || 
                 !headersFromExcel.every((header, index) => header?.trim() === customColumnHeaders[index]?.trim())) {
               validationResult = { 
                 error: `Invalid headers. Expected: "${customColumnHeaders.join(", ")}". Found: "${headersFromExcel.join(", ")}". Please use the provided template.`, 
@@ -80,7 +86,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
               // Still show preview of what was parsed, if possible
               setPreviewData(jsonData.slice(0, MAX_PREVIEW_ROWS + 1)); 
             } else {
-              setPreviewData(jsonData); 
+              setPreviewData(jsonData.slice(0, MAX_PREVIEW_ROWS + 1)); // Ensure preview limit for valid files too
               validationResult = { error: null, hasData: jsonData.length > 1 };
             }
           }
@@ -99,14 +105,13 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
         onValidationComplete(validationResult);
       };
       reader.readAsArrayBuffer(file);
-    } catch (e: any) {
+    } catch (e: any) { // Changed '=>' to '{'
       console.error("Error initiating file read:", e);
-      validationResult = { error: `Error reading file: ${e.message}`, hasData: false };
+      validationResult = { error: `Error reading file: ${e.message}`, hasData: false }; // Use validationResult
       setIsParsing(false);
-      onValidationComplete(validationResult);
+      onValidationComplete(validationResult); // Ensure onValidationComplete is called
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onValidationComplete]); // processFile depends on onValidationComplete
+  }, [onValidationComplete, isParsing]); 
 
   useEffect(() => {
     if (uploadedFileState && uploadedFileState.file && uploadedFileState.status === 'success') {
@@ -114,21 +119,17 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
     } else if (!uploadedFileState || uploadedFileState.status === 'idle' || uploadedFileState.status === 'error'){
         setPreviewData(null);
         setIsParsing(false);
-        // If file is removed or has error, notify parent about validation (likely error or no data)
         if(uploadedFileState && uploadedFileState.status === 'error') {
              onValidationComplete({ error: uploadedFileState.errorMessage || "File upload error.", hasData: false });
-        } else if (!uploadedFileState) {
-            onValidationComplete({ error: null, hasData: false}); // No file, so no data, no error by default
+        } else if (!uploadedFileState || uploadedFileState.status === 'idle') { // Also reset if file becomes idle
+            onValidationComplete({ error: null, hasData: false});
         }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uploadedFileState, processFile]); // Re-run if file state or processFile changes
+  }, [uploadedFileState, processFile, onValidationComplete]); // Added onValidationComplete to dep array
 
-  const currentParseError = uploadedFileState?.status === 'success' && previewData === null && !isParsing 
-    ? "File processed, but no preview data available (possibly empty or fully invalid after header)." 
-    : null; 
-    // This logic is now more complex as error is reported via onValidationComplete.
-    // The UI will react to `uploadedFileState.errorMessage` or the error from `excelValidationState` in parent.
+  const validationErrorToDisplay = excelValidationState?.error;
+  const isSuccessWithoutError = uploadedFileState?.status === 'success' && !validationErrorToDisplay && excelValidationState?.hasData;
 
 
   return (
@@ -149,9 +150,6 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
         </div>
       )}
 
-      {/* Error/Success messages are now primarily driven by parent's excelValidationState and uploadedFileState.errorMessage */}
-      {/* This component will focus on rendering the preview if data is available. */}
-
       {uploadedFileState?.status === 'error' && uploadedFileState.errorMessage && !isParsing && (
          <Card className="border-destructive bg-destructive/10">
           <CardHeader>
@@ -166,15 +164,39 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
         </Card>
       )}
       
-      {/* Logic for displaying validation messages or success based on parent state can be added here if needed, */}
-      {/* or rely on the parent modal to show these messages based on excelValidationState. */}
-      {/* For now, let's assume the parent (InquiryModal) handles high-level status display. */}
+      {validationErrorToDisplay && !isParsing && (
+         <Card className="border-destructive bg-destructive/10">
+          <CardHeader>
+            <CardTitle className="flex items-center text-destructive text-lg">
+              <AlertTriangle className="mr-2 h-5 w-5" />
+              Validation Error
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-destructive">{validationErrorToDisplay}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {isSuccessWithoutError && !isParsing && (
+         <Card className="border-green-500 bg-green-500/10">
+          <CardHeader>
+            <CardTitle className="flex items-center text-green-600 text-lg">
+              <CheckCircle className="mr-2 h-5 w-5" />
+              File Valid & Ready
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-green-700">The uploaded Excel file is valid and contains data. Preview below.</p>
+          </CardContent>
+        </Card>
+      )}
 
 
       {previewData && previewData.length > 0 && !isParsing && (
         <div className="space-y-2 mt-4">
           <h3 className="text-lg font-semibold">Parsed Data Preview:</h3>
-          <ScrollArea className="border rounded-md shadow-sm bg-card h-[300px]"> 
+          <ScrollArea className="border rounded-md shadow-sm bg-card h-[300px] sm:h-[calc(100vh-600px)] md:h-[300px] min-h-[200px]"> 
             <div className="overflow-auto">
               <Table className="min-w-full text-sm">
                 <TableHeader className="bg-muted/50 sticky top-0 z-10">
@@ -187,13 +209,14 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {previewData.slice(1, MAX_PREVIEW_ROWS + 1).map((row, rowIndex) => ( 
+                  {previewData.slice(1).map((row, rowIndex) => ( // Preview all parsed rows up to MAX_PREVIEW_ROWS (already sliced in processFile)
                     <TableRow key={`row-${rowIndex}`} className={rowIndex % 2 === 1 ? "bg-muted/20" : ""}>
                       {row.map((cell, cellIndex) => (
                         <TableCell key={`cell-${rowIndex}-${cellIndex}`} className="px-3 py-1.5 whitespace-nowrap truncate max-w-[200px]">
                           {String(cell)}
                         </TableCell>
                       ))}
+                      {/* Fill empty cells if row has fewer columns than header */}
                       {Array.from({ length: Math.max(0, previewData[0].length - row.length) }).map((_, emptyCellIndex) => (
                         <TableCell key={`empty-${rowIndex}-${emptyCellIndex}`} className="px-3 py-1.5 whitespace-nowrap truncate max-w-[200px]"></TableCell>
                       ))}
@@ -205,7 +228,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
             <ScrollBar orientation="horizontal" />
             <ScrollBar orientation="vertical" />
           </ScrollArea>
-           {(previewData.length -1) > MAX_PREVIEW_ROWS && (
+           {(previewData.length -1) > MAX_PREVIEW_ROWS && ( // Check original length before slicing for preview
             <p className="text-xs text-muted-foreground mt-1">
                 Showing first {MAX_PREVIEW_ROWS} of {previewData.length - 1} data rows.
             </p>
@@ -213,16 +236,18 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
         </div>
       )}
 
-      {uploadedFileState && uploadedFileState.status === 'success' && !previewData && !isParsing && (
-        <div className="flex flex-col items-center justify-center p-4 text-muted-foreground border-2 border-dashed rounded-lg min-h-[100px]">
-            <FileText className="w-8 h-8 mb-2"/>
-            <p>File processed. Waiting for validation result or no data to preview.</p>
-        </div>
-      )}
-      {!uploadedFileState && !isParsing && (
+      {/* Fallback if no file uploaded or processed, and not parsing */}
+      {!uploadedFileState && !isParsing && !previewData && (
          <div className="flex flex-col items-center justify-center p-4 text-muted-foreground border-2 border-dashed rounded-lg min-h-[100px]">
             <FileText className="w-8 h-8 mb-2"/>
             <p>Upload an Excel file to see a preview.</p>
+        </div>
+      )}
+      {/* Fallback if file processed but no preview (e.g. error during parse but before preview set) */}
+      {uploadedFileState && uploadedFileState.status === 'success' && !previewData && !isParsing && !validationErrorToDisplay && (
+        <div className="flex flex-col items-center justify-center p-4 text-muted-foreground border-2 border-dashed rounded-lg min-h-[100px]">
+            <FileText className="w-8 h-8 mb-2"/>
+            <p>File processed. {excelValidationState && !excelValidationState.hasData && !excelValidationState.error ? "No data rows found in the file." : "No data to preview."}</p>
         </div>
       )}
 

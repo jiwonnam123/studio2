@@ -2,7 +2,7 @@
 "use client";
 
 import type React from 'react';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -32,16 +32,25 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
   const [excelValidationState, setExcelValidationState] = useState<ExcelValidationResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleFileChange = (file: UploadedFile | null) => {
+  const handleFileChange = useCallback((file: UploadedFile | null) => {
     setUploadedFile(file);
     if (!file || file.status !== 'success') {
-      setExcelValidationState(null); // Reset validation if file is removed or not successful
+      // Reset validation state if file is removed or not successful
+      if (excelValidationState !== null) { // Prevent unnecessary update if already null
+        setExcelValidationState(null);
+      }
     }
-  };
+  }, [excelValidationState]); // excelValidationState added to prevent stale closure issues if it were used directly in setExcelValidationState
 
-  const handleExcelValidationComplete = (result: ExcelValidationResult) => {
-    setExcelValidationState(result);
-  };
+  const handleExcelValidationComplete = useCallback((result: ExcelValidationResult) => {
+    setExcelValidationState(prevState => {
+      // Prevent update if the new result is effectively the same as the old one
+      if (JSON.stringify(prevState) === JSON.stringify(result)) {
+        return prevState;
+      }
+      return result;
+    });
+  }, []);
 
   const handleSubmitInquiry = async () => {
     setIsSubmitting(true);
@@ -74,6 +83,7 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
       }
     } else if (activeTab === 'direct') {
       // Placeholder for direct entry submission
+      // Access grid data here (needs to be lifted up or accessed via ref)
       console.log('Submitting direct entry form...');
       toast({
         title: "Inquiry Submitted (Direct)",
@@ -91,17 +101,28 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
     if (!isOpen) {
        setUploadedFile(null); 
        setExcelValidationState(null);
-       setActiveTab('excel'); 
+       // setActiveTab('excel'); // Resetting tab might not be desired if user reopens
     }
     onOpenChange(isOpen);
   };
 
   const isExcelSubmitDisabled = () => {
-    if (activeTab !== 'excel') return false;
+    if (activeTab !== 'excel') return false; // Not disabled if not excel tab (other tab might have own logic)
+    if (isSubmitting) return true;
     if (!uploadedFile || uploadedFile.status !== 'success') return true;
     if (!excelValidationState || excelValidationState.error !== null || !excelValidationState.hasData) return true;
     return false;
   };
+
+  // Placeholder for direct entry submit disabled logic
+  const isDirectEntrySubmitDisabled = () => {
+    if (activeTab !== 'direct') return false;
+    if (isSubmitting) return true;
+    // Add logic for direct entry validation if needed
+    // e.g., check if gridData is empty or invalid
+    return false; 
+  };
+
 
   return (
     <Dialog open={open} onOpenChange={handleModalClose}>
@@ -127,7 +148,7 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
                 onValidationComplete={handleExcelValidationComplete}
               />
             </TabsContent>
-            <TabsContent value="direct" className="mt-0">
+            <TabsContent value="direct" className="mt-0 h-full"> {/* Ensure DirectEntryTab can take full height */}
               <DirectEntryTab />
             </TabsContent>
           </div>
@@ -139,9 +160,8 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
             className="w-full sm:w-auto" 
             disabled={
               isSubmitting ||
-              (activeTab === 'excel' && isExcelSubmitDisabled())
-              // Add similar logic for direct entry if needed:
-              // || (activeTab === 'direct' && isDirectEntrySubmitDisabled()) 
+              (activeTab === 'excel' && isExcelSubmitDisabled()) ||
+              (activeTab === 'direct' && isDirectEntrySubmitDisabled())
             }
           >
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
