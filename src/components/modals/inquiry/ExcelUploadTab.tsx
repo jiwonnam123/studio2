@@ -69,7 +69,7 @@ export function ExcelUploadTab({
   };
 
   const renderFileInfo = () => {
-    if (!uploadedFileState || uploadedFileState.status === 'idle') {
+    if (!uploadedFileState || uploadedFileState.status === 'idle' || isProcessingGlobal) {
         return null;
     }
     return (
@@ -87,7 +87,7 @@ export function ExcelUploadTab({
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            {uploadedFileState.status === 'success' && !isProcessingGlobal && excelValidationState && (
+            {uploadedFileState.status === 'success' && excelValidationState && (
               excelValidationState.isValid && excelValidationState.hasData ? (
                 <CheckCircle2 className="w-5 h-5 text-green-500" title="파일 유효 및 데이터 존재" />
               ) : (
@@ -106,84 +106,53 @@ export function ExcelUploadTab({
         {uploadedFileState.status === 'error' && uploadedFileState.errorMessage && (
           <p className="text-xs text-destructive mt-1 pt-2 border-t border-destructive/20">{uploadedFileState.errorMessage}</p>
         )}
+         {uploadedFileState.status === 'success' && excelValidationState && !isProcessingGlobal && (
+          <div className="mt-3 pt-3 border-t">
+            {excelValidationState.error && (
+              <Card className="border-destructive bg-destructive/10">
+                <CardHeader className="pb-2 pt-3">
+                  <CardTitle className="flex items-center text-destructive text-sm">
+                    <AlertTriangle className="mr-2 h-4 w-4" />
+                    유효성 검사 오류
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pb-3">
+                  <p className="text-destructive text-xs">{excelValidationState.error}</p>
+                  {excelValidationState.previewData && excelValidationState.previewData.length > 0 && (
+                    <p className="text-xs text-destructive mt-1">
+                      아래 미리보기는 부분적이거나 잘못된 데이터를 표시할 수 있습니다.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+            {!excelValidationState.error && !excelValidationState.hasData && excelValidationState.headersValid && (
+              <Card className="border-orange-500 bg-orange-500/10">
+                <CardHeader className="pb-2 pt-3">
+                  <CardTitle className="flex items-center text-orange-600 text-sm">
+                    <AlertTriangle className="mr-2 h-4 w-4" />
+                    데이터 행 없음
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pb-3">
+                  <p className="text-orange-700 text-xs">
+                    Excel 파일 헤더는 유효하지만, 그 아래에 데이터 행이 없습니다. (총 데이터 행: {excelValidationState.totalDataRows ?? 0}).
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
       </div>
     );
   };
-
-  const renderValidationAndPreview = () => {
-    if (isProcessingGlobal || !uploadedFileState || uploadedFileState.status !== 'success' || !excelValidationState) {
+  
+  const renderPreviewTable = () => {
+    if (isProcessingGlobal || !uploadedFileState || uploadedFileState.status !== 'success' || !excelValidationState || excelValidationState.error || !excelValidationState.hasData || !excelValidationState.previewData) {
       return null;
     }
-
-    if (excelValidationState.error) { 
-      return (
-        <Card className="border-destructive bg-destructive/10 mt-0">
-          <CardHeader className="pb-2 pt-4">
-            <CardTitle className="flex items-center text-destructive text-base">
-              <AlertTriangle className="mr-2 h-5 w-5" />
-              유효성 검사 오류
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-4">
-            <p className="text-destructive text-sm">{excelValidationState.error}</p>
-            {excelValidationState.previewData && excelValidationState.previewData.length > 0 && (
-                <>
-                    <p className="text-xs text-destructive mt-1">
-                        미리보기는 부분적이거나 잘못된 데이터를 표시할 수 있습니다.
-                    </p>
-                    {renderPreviewTable(excelValidationState.previewData, excelValidationState.totalDataRows)}
-                </>
-            )}
-          </CardContent>
-        </Card>
-      );
-    }
-
-    if (!excelValidationState.hasData && excelValidationState.headersValid) { 
-      return (
-        <Card className="border-orange-500 bg-orange-500/10 mt-0">
-          <CardHeader className="pb-2 pt-4">
-            <CardTitle className="flex items-center text-orange-600 text-base">
-              <AlertTriangle className="mr-2 h-5 w-5" />
-              데이터 행 없음
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pb-4">
-            <p className="text-orange-700 text-sm">
-              Excel 파일 헤더는 유효하지만, 그 아래에 데이터 행이 없습니다. 
-              (워커가 찾은 총 데이터 행: {excelValidationState.totalDataRows ?? 0}).
-            </p>
-            {excelValidationState.previewData && excelValidationState.previewData.length > 0 && (
-                renderPreviewTable(excelValidationState.previewData, excelValidationState.totalDataRows)
-            )}
-          </CardContent>
-        </Card>
-      );
-    }
-
-    if (excelValidationState.isValid && excelValidationState.hasData && excelValidationState.previewData) {
-        return renderPreviewTable(excelValidationState.previewData, excelValidationState.totalDataRows);
-    }
     
-    // Fallback for unexpected states, can be more specific if needed
-    if (uploadedFileState?.status === 'success' && excelValidationState) {
-        return (
-            <Card className="mt-0">
-                <CardContent className="p-4">
-                    <p className="text-sm text-muted-foreground">
-                        파일이 처리되었습니다. 유효성 검사 결과를 기다리거나 예상치 못한 상태가 발생했습니다.
-                    </p>
-                     <pre className="text-xs bg-muted p-2 rounded mt-2 overflow-auto max-h-40">
-                        {JSON.stringify(excelValidationState, null, 2)}
-                    </pre>
-                </CardContent>
-            </Card>
-        );
-    }
-    return null;
-  };
-  
-  const renderPreviewTable = (dataForPreviewTable: string[][], totalDataRowsInFile?: number) => {
+    const dataForPreviewTable = excelValidationState.previewData;
     if (!dataForPreviewTable || dataForPreviewTable.length === 0) return null;
     
     const headers = dataForPreviewTable[0] || []; 
@@ -212,7 +181,6 @@ export function ExcelUploadTab({
                             {String(cell)}
                         </TableCell>
                         ))}
-                        {/* Ensure all rows have the same number of cells as headers for consistent layout */}
                         {Array.from({ length: Math.max(0, headers.length - row.length) }).map((_, emptyCellIndex) => (
                            <TableCell key={`empty-${rowIndex}-${emptyCellIndex}`} className="px-3 py-1.5"></TableCell>
                         ))}
@@ -224,9 +192,9 @@ export function ExcelUploadTab({
             <ScrollBar orientation="horizontal" />
             <ScrollBar orientation="vertical" />
             </ScrollArea>
-            {totalDataRowsInFile !== undefined && ( 
+            {excelValidationState.totalDataRows !== undefined && ( 
             <p className="text-xs text-muted-foreground mt-1">
-                미리보기에 {displayRows.length}개 행 표시 중 (파일 내 총 데이터 행 {totalDataRowsInFile}개 - 헤더 제외). 
+                미리보기에 {displayRows.length}개 행 표시 중 (파일 내 총 데이터 행 {excelValidationState.totalDataRows}개 - 헤더 제외). 
                 모든 유효한 데이터 행은 제출 시 처리됩니다.
             </p>
             )}
@@ -244,17 +212,29 @@ export function ExcelUploadTab({
           disabled={isProcessingGlobal} 
         >
           <Download className="mr-2 h-4 w-4" />
-          excel 양식
+          Excel 템플릿
         </Button>
       </div>
       
-      {(!uploadedFileState || uploadedFileState.status === 'idle') && !isProcessingGlobal && (
-        <FileUploadZone onFileAccepted={onFileChange} disabled={isProcessingGlobal} />
+      {isProcessingGlobal && (
+         <div className="flex flex-col items-center justify-center w-full h-[185px] border-2 border-dashed rounded-lg border-primary/50 bg-primary/10 p-4">
+            <Loader2 className="w-10 h-10 mb-3 text-primary animate-spin" />
+            <p className="text-sm text-primary">파일 처리 중...</p>
+            {uploadedFileState?.file && (
+                <p className="text-xs text-primary/80 mt-1">
+                    ({((uploadedFileState.file.size || 0) / 1024).toFixed(1)}KB)
+                </p>
+            )}
+         </div>
       )}
       
-      {uploadedFileState && uploadedFileState.status !== 'idle' && renderFileInfo()}
+      {!isProcessingGlobal && (!uploadedFileState || uploadedFileState.status === 'idle') && (
+        <FileUploadZone onFileAccepted={onFileChange} disabled={false} />
+      )}
+      
+      {!isProcessingGlobal && uploadedFileState && uploadedFileState.status !== 'idle' && renderFileInfo()}
 
-      {!isProcessingGlobal && uploadedFileState?.status === 'success' && renderValidationAndPreview()}
+      {!isProcessingGlobal && uploadedFileState?.status === 'success' && renderPreviewTable()}
     </div>
   );
 }
