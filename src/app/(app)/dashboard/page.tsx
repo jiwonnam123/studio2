@@ -30,7 +30,6 @@ import { collection, query, where, orderBy, onSnapshot, Timestamp } from 'fireba
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-// import { useRouter } from 'next/navigation'; // No longer needed for router.push for legacy form creation
 
 const FORMS_STORAGE_KEY = 'formflow_forms';
 
@@ -42,7 +41,6 @@ export default function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [mounted, setMounted] = useState(false);
   const [isInquiryModalOpen, setIsInquiryModalOpen] = useState(false);
-  // const router = useRouter(); // No longer needed
 
   useEffect(() => {
     setMounted(true); 
@@ -199,7 +197,6 @@ export default function DashboardPage() {
             <p className="mt-1 text-sm text-muted-foreground">
               Legacy forms are managed via local storage. Use the "Submit New Inquiry" button above to get started with the new system.
             </p>
-            {/* Removed legacy form creation link */}
           </div>
         ) : filteredForms.length === 0 && searchTerm ? (
            <div className="text-center py-10">
@@ -273,23 +270,28 @@ export default function DashboardPage() {
               View and manage your submitted inquiry data.
             </p>
           </div>
-           {/* Removed the "Submit New Inquiry" button from here */}
         </div>
 
         {isLoadingInquiries ? (
-          <div className="space-y-4">
-            <Skeleton className="h-10 w-full rounded" />
-            <Skeleton className="h-10 w-full rounded" />
-            <Skeleton className="h-10 w-full rounded" />
-          </div>
+          <Card>
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                <Skeleton className="h-10 w-full rounded" />
+                <Skeleton className="h-10 w-full rounded" />
+                <Skeleton className="h-10 w-full rounded" />
+              </div>
+            </CardContent>
+          </Card>
         ) : submittedInquiries.length === 0 ? (
-          <div className="text-center py-10 border-2 border-dashed border-muted rounded-lg">
-            <ListChecks className="mx-auto h-12 w-12 text-muted-foreground" />
-            <h3 className="mt-2 text-xl font-semibold">No Inquiries Submitted Yet</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Use the "Submit New Inquiry" button in the "My Forms (Legacy)" section above to submit your first inquiry.
-            </p>
-          </div>
+          <Card>
+            <CardContent className="text-center py-10">
+              <ListChecks className="mx-auto h-12 w-12 text-muted-foreground" />
+              <h3 className="mt-2 text-xl font-semibold">No Inquiries Submitted Yet</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Use the "Submit New Inquiry" button in the "My Forms (Legacy)" section above to submit your first inquiry.
+              </p>
+            </CardContent>
+          </Card>
         ) : (
           <Card>
             <Table>
