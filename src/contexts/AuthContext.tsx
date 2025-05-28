@@ -3,7 +3,7 @@
 
 import type { UserProfile } from '@/types';
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation'; // Keep useRouter if used elsewhere, though not directly in this snippet for redirects
 import { 
   getAuth, 
   onAuthStateChanged, 
@@ -15,7 +15,7 @@ import {
   signInWithPopup,
   type User as FirebaseUser 
 } from "firebase/auth";
-import { app } from '@/lib/firebase'; // Import your Firebase app instance
+import { app } from '@/lib/firebase'; 
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -34,13 +34,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const router = useRouter();
+  const router = useRouter(); // router might still be needed for explicit logout navigation
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
         const userProfile: UserProfile = {
-          id: firebaseUser.uid, // Use uid as id
+          id: firebaseUser.uid, 
           email: firebaseUser.email,
           name: firebaseUser.displayName,
         };
@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(null);
         setIsAuthenticated(false);
       }
-      setIsLoading(false);
+      setIsLoading(false); // Central point for setting isLoading to false after auth state is known
     });
 
     return () => unsubscribe();
@@ -60,12 +60,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      // onAuthStateChanged will handle isLoading, user, and isAuthenticated
     } catch (error: any) {
       console.error("Firebase login error:", error);
-      setIsLoading(false); // Ensure loading is false on error
+      setIsLoading(false); // Set loading to false on direct error from signIn
       throw error; 
     }
-    // setIsLoading(false) will be handled by onAuthStateChanged
   };
 
   const register = async (email: string, name: string, password: string) => {
@@ -74,44 +74,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       if (userCredential.user) {
         await updateProfile(userCredential.user, { displayName: name });
-        // setUser({ id: userCredential.user.uid, email: userCredential.user.email, name: name });
-        // setIsAuthenticated(true); 
-        // No need to manually set user here, onAuthStateChanged will handle it.
       }
+      // onAuthStateChanged will handle isLoading, user, and isAuthenticated
     } catch (error: any) {
       console.error("Firebase registration error:", error);
-      setIsLoading(false); // Ensure loading is false on error
+      setIsLoading(false); // Set loading to false on direct error from createUser
       throw error; 
     }
-    // setIsLoading(false) will be handled by onAuthStateChanged
   };
 
   const loginWithGoogle = async () => {
-    setIsLoading(true);
+    setIsLoading(true); // Set loading true at the beginning of the attempt
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-      // onAuthStateChanged will handle user state, isAuthenticated, and setIsLoading(false) on success
+      // If successful, onAuthStateChanged will:
+      // 1. Set the user and isAuthenticated.
+      // 2. Set isLoading to false.
+      // This will then trigger the redirect in AppLayout or HomePage.
     } catch (error: any) {
       console.error("Firebase Google login error:", error);
-      // onAuthStateChanged might not fire if popup closes very early, ensure isLoading is reset
-      // If error is auth/popup-closed-by-user, onAuthStateChanged might not fire with a "no user" state immediately
-      // to set isLoading(false). So, do it here if not already false.
-      if (user === null) { // if user state hasn't changed to logged in
-        setIsLoading(false);
-      }
-      throw error; 
-    } finally {
-        // Adding a finally block for good measure, though onAuthStateChanged should handle most cases.
-        // If signInWithPopup promise resolves or rejects, and onAuthStateChanged hasn't set isLoading to false yet.
-        // This is a bit tricky because onAuthStateChanged is async.
-        // The primary setIsLoading(false) is in onAuthStateChanged.
-        // This ensures that if an error occurs and onAuthStateChanged hasn't updated the state yet (e.g. no user logged in),
-        // we don't get stuck in a loading state.
-         if (auth.currentUser === null && isLoading) {
-           // Only set to false if there's no current user AND we are still in a loading state from this function.
-           // This check helps to avoid prematurely setting isLoading to false if onAuthStateChanged is about to set it with a valid user.
-         }
+      // If signInWithPopup fails (e.g., popup closed, network error before auth completes),
+      // onAuthStateChanged should still fire (potentially with no user or the old user state).
+      // onAuthStateChanged will be responsible for setting isLoading to false.
+      // We re-throw the error so the LoginForm can display a toast to the user.
+      // No explicit setIsLoading(false) here; let onAuthStateChanged handle it to prevent race conditions.
+      throw error;
     }
   };
 
@@ -119,12 +107,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true); 
     try {
       await signOut(auth);
-      router.push('/login'); 
+      // onAuthStateChanged will set user to null, isAuthenticated to false, and isLoading to false.
+      // AppLayout or HomePage will then redirect to /login.
+      // Explicit router.push('/login') can be added here if immediate navigation is preferred over relying on useEffect in layouts.
+      // For consistency with current pattern, let's rely on useEffect for now.
+      // router.push('/login'); // If uncommented, ensure it doesn't conflict with layout effects
     } catch (error: any) {
       console.error("Firebase logout error:", error);
+      setIsLoading(false); // Set loading to false on direct error from signOut
       throw error;
-    } finally {
-      // onAuthStateChanged will set user to null and setIsLoading(false)
     }
   };
 
