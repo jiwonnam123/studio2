@@ -73,7 +73,6 @@ export function DirectEntryTab() {
         : row
     );
     setGridDataInternal(newGridData);
-    // Only push to history if it's a new state from the current history point
     if (JSON.stringify(newGridData) !== JSON.stringify(history[currentHistoryIndex])) {
         pushStateToHistory(newGridData);
     }
@@ -86,7 +85,7 @@ export function DirectEntryTab() {
   ) => {
     event.preventDefault();
     const pastedText = event.clipboardData.getData('text/plain');
-    const pastedRows = pastedText.split('\n');
+    const pastedRows = pastedText.split(/\\r\\n|\\n|\\r/); // Handles different line endings
     
     const currentActiveGridData = gridData.map(row => [...row]);
 
@@ -114,13 +113,10 @@ export function DirectEntryTab() {
       const isCtrlShiftZ = (event.ctrlKey || (isMac && event.metaKey)) && event.shiftKey && event.key.toLowerCase() === 'z';
 
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) {
-        // If focus is on an input, don't hijack undo/redo for the grid, let the input handle it.
-        // Except if it's OUR input grid and we want to handle it.
-        // For now, this simple check might be okay. More complex focus management might be needed.
         if(tableRef.current && tableRef.current.contains(event.target as Node)) {
-           // It's one of our grid inputs, proceed with grid undo/redo
+           // Grid input, proceed
         } else {
-            return;
+            return; // Not our input, let browser handle
         }
       }
 
@@ -147,13 +143,12 @@ export function DirectEntryTab() {
     };
   }, [history, currentHistoryIndex]);
 
-  // --- Drag to Select Logic ---
   const handleCellMouseDown = useCallback((r: number, c: number) => {
     setIsSelecting(true);
     setSelectionStartCell({ r, c });
-    setSelectionEndCell({ r, c });
-    document.addEventListener('mouseup', handleDocumentMouseUp);
-  }, []);
+    setSelectionEndCell({ r, c }); // Start selection with a single cell
+    document.addEventListener('mouseup', handleDocumentMouseUp, { once: true });
+  }, [handleDocumentMouseUp]);
   
   const handleCellMouseEnter = useCallback((r: number, c: number) => {
     if (isSelecting) {
@@ -161,9 +156,10 @@ export function DirectEntryTab() {
     }
   }, [isSelecting]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const handleDocumentMouseUp = useCallback(() => {
     setIsSelecting(false);
-    document.removeEventListener('mouseup', handleDocumentMouseUp);
+    // No need to remove listener if { once: true } is used
   }, []);
 
   const getNormalizedSelection = (): SelectionRange | null => {
@@ -200,7 +196,7 @@ export function DirectEntryTab() {
           return cell;
         });
       }
-      return row;
+      return [...row]; // Return a new array for unchanged rows too
     });
     setGridDataInternal(newGridData);
     pushStateToHistory(newGridData);
@@ -211,7 +207,7 @@ export function DirectEntryTab() {
   const handleInitializeGrid = () => {
     const emptyGrid = initialGridData();
     setGridDataInternal(emptyGrid);
-    setHistory([emptyGrid.map(row => [...row])]); // Reset history with the new initial state
+    setHistory([emptyGrid.map(row => [...row])]); 
     setCurrentHistoryIndex(0);
     setSelectionStartCell(null);
     setSelectionEndCell(null);
@@ -259,8 +255,8 @@ export function DirectEntryTab() {
           <table 
             ref={tableRef} 
             className="min-w-full divide-y divide-border text-sm"
-            style={{ userSelect: isSelecting ? 'none' : 'auto' }} // Prevent text selection during grid selection
-            onMouseLeave={() => { if (isSelecting) handleDocumentMouseUp(); }} // Stop selection if mouse leaves table
+            style={{ userSelect: isSelecting ? 'none' : 'auto' }}
+            onMouseLeave={() => { if (isSelecting) handleDocumentMouseUp(); }}
           >
             <thead className="bg-muted/50 sticky top-0 z-10">
               <tr>
@@ -285,8 +281,8 @@ export function DirectEntryTab() {
                     <td 
                         key={`cell-${rowIndex}-${colIndex}`} 
                         className={cn(
-                          "p-0 relative",
-                          isCellSelected(rowIndex, colIndex) && "bg-primary/20"
+                          "p-0 relative", // Ensure no padding on td for input to fill
+                          isCellSelected(rowIndex, colIndex) && "bg-primary/10" // Apply background to td
                         )}
                         onMouseDown={() => handleCellMouseDown(rowIndex, colIndex)}
                         onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
@@ -297,8 +293,9 @@ export function DirectEntryTab() {
                         onChange={(e) => handleInputChange(rowIndex, colIndex, e)}
                         onPaste={(e) => handlePaste(rowIndex, colIndex, e)}
                         className={cn(
-                            "w-full h-full px-2 py-1.5 border-0 rounded-none focus:ring-1 focus:ring-primary focus:z-30 focus:relative focus:shadow-md",
-                            isCellSelected(rowIndex, colIndex) && "border-2 border-primary"
+                            "w-full h-full px-2 py-1.5 rounded-none focus:ring-1 focus:ring-primary focus:z-30 focus:relative focus:shadow-md",
+                            "border-2", // Always have a 2px border
+                            isCellSelected(rowIndex, colIndex) ? "border-primary" : "border-transparent" // Change border color
                         )}
                         aria-label={`Cell ${columnHeaders[colIndex]}${rowIndex + 1}`}
                       />
@@ -320,3 +317,5 @@ export function DirectEntryTab() {
     </div>
   );
 }
+
+    
