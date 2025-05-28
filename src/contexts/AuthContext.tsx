@@ -11,6 +11,8 @@ import {
   signInWithEmailAndPassword, 
   signOut,
   updateProfile,
+  GoogleAuthProvider, // Added
+  signInWithPopup,    // Added
   type User as FirebaseUser 
 } from "firebase/auth";
 import { app } from '@/lib/firebase'; // Import your Firebase app instance
@@ -22,6 +24,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>; 
   logout: () => Promise<void>;
   register: (email: string, name: string, password: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>; // Added
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,6 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           id: firebaseUser.uid,
           email: firebaseUser.email,
           name: firebaseUser.displayName,
+          // You might want to add photoURL if you use it: firebaseUser.photoURL
         };
         setUser(userProfile);
         setIsAuthenticated(true);
@@ -58,13 +62,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       // onAuthStateChanged will handle setting user and isAuthenticated
-      router.push('/dashboard');
+      // Router push might be better handled in the component or based on onAuthStateChanged logic elsewhere
+      // router.push('/dashboard'); // Removed for now, AppLayout handles redirect
     } catch (error: any) {
-      setIsLoading(false);
+      // setIsLoading(false); // Let onAuthStateChanged handle final isLoading state
       console.error("Firebase login error:", error);
       throw error; // Re-throw to be caught by the form
     }
-    // setIsLoading(false) will be handled by onAuthStateChanged's effect
   };
 
   const register = async (email: string, name: string, password: string) => {
@@ -77,22 +81,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser({ id: userCredential.user.uid, email: userCredential.user.email, name: name });
         setIsAuthenticated(true);
       }
-      // onAuthStateChanged will also update the state
-      router.push('/dashboard');
+      // router.push('/dashboard'); // Removed for now, AppLayout handles redirect
     } catch (error: any) {
-      setIsLoading(false);
+      // setIsLoading(false);
       console.error("Firebase registration error:", error);
       throw error; // Re-throw
     }
-     // setIsLoading(false) will be handled by onAuthStateChanged's effect
+  };
+
+  const loginWithGoogle = async () => {
+    setIsLoading(true);
+    const provider = new GoogleAuthProvider();
+    try {
+      await signInWithPopup(auth, provider);
+      // onAuthStateChanged will handle user state and isAuthenticated
+      // router.push('/dashboard'); // Removed for now, AppLayout handles redirect
+    } catch (error: any) {
+      // setIsLoading(false);
+      console.error("Firebase Google login error:", error);
+      throw error; // Re-throw to be caught by the form
+    }
   };
 
   const logout = async () => {
-    setIsLoading(true);
+    // setIsLoading(true); // Not strictly necessary to set true here if onAuthStateChanged handles it
     try {
       await signOut(auth);
       // onAuthStateChanged will handle clearing user and isAuthenticated
-      router.push('/login');
+      router.push('/login'); // Explicitly redirect on logout
     } catch (error: any) {
       console.error("Firebase logout error:", error);
       // Still proceed to clear local state if signOut fails for some reason
@@ -100,10 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsAuthenticated(false);
       throw error;
     } finally {
-      // Ensure loading state is reset even if router push is part of onAuthStateChanged
-      // However, the main isLoading is for the initial auth check.
-      // For logout, we don't necessarily need a global isLoading here,
-      // as onAuthStateChanged will set it false once the user is null.
+      setIsLoading(false); // Ensure loading is false after logout attempt
     }
   };
 
@@ -114,6 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     logout,
     register,
+    loginWithGoogle, // Added
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

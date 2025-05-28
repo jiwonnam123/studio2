@@ -28,21 +28,20 @@ type LoginFormValues = z.infer<typeof LoginSchema>;
 
 // Google Icon SVG
 const GoogleIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2 h-4 w-4">
-    <path d="M22 12c0-5.52-4.48-10-10-10S2 6.48 2 12s4.48 10 10 10 10-4.48 10-10z"/>
-    <path d="M12 22c5.52 0 10-4.48 10-10H2c0 5.52 4.48 10 10 10z" fill="#4285F4"/>
-    <path d="M12 2c5.52 0 10 4.48 10 10h-5.5L12 2z" fill="#EA4335"/>
-    <path d="M2 12c0-5.52 4.48-10 10-10v5.5L2 12z" fill="#FBBC05"/>
-    <path d="M22 12c0 5.52-4.48 10-10 10v-5.5L22 12z" fill="#34A853"/>
-    <path d="M16.5 12c0-2.48-1.01-4.7-2.64-6.34l-3.86 3.86c.86.86 1.34 2.03 1.34 3.32s-.48 2.46-1.34 3.32l3.86 3.86C15.49 16.7 16.5 14.48 16.5 12z" fill="#FFFFFF"/>
-    <path d="M7.5 12c0 2.48 1.01 4.7 2.64 6.34l3.86-3.86c-.86-.86-1.34-2.03-1.34-3.32s.48 2.46 1.34-3.32L10.14 5.66C8.51 7.3 7.5 9.52 7.5 12z" fill="#FFFFFF"/>
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 48 48" fill="none" className="mr-2 h-5 w-5">
+    <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303c-1.649 4.657-6.08 8-11.303 8c-6.627 0-12-5.373-12-12s5.373-12 12-12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C12.955 4 4 12.955 4 24s8.955 20 20 20s20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"/>
+    <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 15.108 18.961 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.268 4 24 4C16.318 4 9.656 8.337 6.306 14.691z"/>
+    <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.19-5.238A11.91 11.91 0 0 1 24 36c-5.202 0-9.619-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"/>
+    <path fill="#1976D2" d="M43.611 20.083H24v8h11.303c-.792 2.237-2.238 4.145-4.244 5.576l6.19 5.238C42.012 35.245 44 30.025 44 24c0-1.341-.138-2.65-.389-3.917z"/>
   </svg>
 );
 
 
 export function LoginForm() {
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(LoginSchema),
     defaultValues: {
@@ -66,11 +65,14 @@ export function LoginForm() {
         switch (error.code) {
           case 'auth/user-not-found':
           case 'auth/wrong-password':
-          case 'auth/invalid-credential':
+          case 'auth/invalid-credential': // General case for invalid email/password
             errorMessage = "Invalid email or password.";
             break;
           case 'auth/invalid-email':
             errorMessage = "Invalid email format.";
+            break;
+          case 'auth/user-disabled':
+            errorMessage = "This account has been disabled.";
             break;
           default:
             errorMessage = error.message || "Login failed. Please try again.";
@@ -86,13 +88,43 @@ export function LoginForm() {
     }
   }
 
-  const handleGoogleLogin = () => {
-    // Placeholder for Google login logic
-    toast({
-      title: "Google Login",
-      description: "Google login functionality is not yet implemented with Firebase.",
-      variant: "default",
-    });
+  const handleGoogleLogin = async () => {
+    setIsGoogleSubmitting(true);
+    try {
+      await loginWithGoogle();
+      toast({
+        title: "Google Login Successful",
+        description: "Welcome!",
+      });
+      // Navigation is handled by AuthContext or AppLayout after successful Firebase login
+    } catch (error: any) {
+      let errorMessage = "Google login failed. Please try again.";
+      if (error.code) {
+        switch (error.code) {
+          case 'auth/popup-closed-by-user':
+            errorMessage = "Login cancelled. The Google sign-in popup was closed.";
+            break;
+          case 'auth/cancelled-popup-request':
+             errorMessage = "Login cancelled. Multiple popups were opened.";
+            break;
+          case 'auth/popup-blocked-by-browser':
+            errorMessage = "Login failed. Please enable popups for this site to sign in with Google.";
+            break;
+          case 'auth/account-exists-with-different-credential':
+            errorMessage = "An account already exists with the same email address but different sign-in credentials. Sign in using a provider associated with this email address.";
+            break;
+          default:
+            errorMessage = error.message || "Google login failed. Please try again.";
+        }
+      }
+      toast({
+        title: "Google Login Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsGoogleSubmitting(false);
+    }
   };
 
   return (
@@ -113,7 +145,7 @@ export function LoginForm() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input placeholder="m@example.com" {...field} />
+                    <Input placeholder="m@example.com" {...field} disabled={isSubmitting || isGoogleSubmitting} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -126,13 +158,13 @@ export function LoginForm() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting || isGoogleSubmitting}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
+            <Button type="submit" className="w-full" disabled={isSubmitting || isGoogleSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Login
             </Button>
@@ -144,7 +176,8 @@ export function LoginForm() {
             OR
           </span>
         </div>
-        <Button variant="outline" className="w-full" onClick={handleGoogleLogin} disabled={isSubmitting}>
+        <Button variant="outline" className="w-full" onClick={handleGoogleLogin} disabled={isSubmitting || isGoogleSubmitting}>
+          {isGoogleSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           <GoogleIcon />
           Login with Google
         </Button>
