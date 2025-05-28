@@ -24,8 +24,6 @@ import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { useState } from "react";
 
-type LoginFormValues = z.infer<typeof LoginSchema>;
-
 // Google Icon SVG
 const GoogleIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 48 48" fill="none" className="mr-2 h-5 w-5">
@@ -42,7 +40,7 @@ export function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
 
-  const form = useForm<LoginFormValues>({
+  const form = useForm<z.infer<typeof LoginSchema>>({
     resolver: zodResolver(LoginSchema),
     defaultValues: {
       email: "",
@@ -50,7 +48,7 @@ export function LoginForm() {
     },
   });
 
-  async function onSubmit(data: LoginFormValues) {
+  async function onSubmit(data: z.infer<typeof LoginSchema>) {
     setIsSubmitting(true);
     try {
       await login(data.email, data.password); 
@@ -58,14 +56,13 @@ export function LoginForm() {
         title: "Login Successful",
         description: "Welcome back!",
       });
-      // Navigation is handled by AuthContext or AppLayout after successful Firebase login
     } catch (error: any) {
       let errorMessage = "An unexpected error occurred.";
       if (error.code) {
         switch (error.code) {
           case 'auth/user-not-found':
           case 'auth/wrong-password':
-          case 'auth/invalid-credential': // General case for invalid email/password
+          case 'auth/invalid-credential':
             errorMessage = "Invalid email or password.";
             break;
           case 'auth/invalid-email':
@@ -96,22 +93,27 @@ export function LoginForm() {
         title: "Google Login Successful",
         description: "Welcome!",
       });
-      // Navigation is handled by AuthContext or AppLayout after successful Firebase login
     } catch (error: any) {
       let errorMessage = "Google login failed. Please try again.";
       if (error.code) {
         switch (error.code) {
           case 'auth/popup-closed-by-user':
-            errorMessage = "Login cancelled. The Google sign-in popup was closed.";
+            errorMessage = "Login cancelled. The Google sign-in popup was closed by you or closed prematurely. Ensure popups are allowed and third-party cookies are not strictly blocked for this site. Also, check if this website's domain is correctly authorized in your Firebase project.";
             break;
           case 'auth/cancelled-popup-request':
-             errorMessage = "Login cancelled. Multiple popups were opened.";
+             errorMessage = "Login cancelled. Multiple popups were opened or the request was cancelled.";
             break;
           case 'auth/popup-blocked-by-browser':
             errorMessage = "Login failed. Please enable popups for this site to sign in with Google.";
             break;
           case 'auth/account-exists-with-different-credential':
-            errorMessage = "An account already exists with the same email address but different sign-in credentials. Sign in using a provider associated with this email address.";
+            errorMessage = "An account already exists with this email but used a different sign-in method. Try that method, or use a different Google account.";
+            break;
+          case 'auth/unauthorized-domain':
+            errorMessage = "Login failed. This website's domain is not authorized for Google Sign-In. Please contact the site administrator or check Firebase project settings if you are the developer.";
+            break;
+          case 'auth/operation-not-allowed':
+             errorMessage = "Google Sign-In is not enabled for this Firebase project. Please enable it in the Firebase console.";
             break;
           default:
             errorMessage = error.message || "Google login failed. Please try again.";
@@ -145,7 +147,7 @@ export function LoginForm() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input placeholder="m@example.com" {...field} disabled={isSubmitting || isGoogleSubmitting} />
+                    <Input placeholder="m@example.com" {...field} autoComplete="email" disabled={isSubmitting || isGoogleSubmitting} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -158,7 +160,7 @@ export function LoginForm() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} disabled={isSubmitting || isGoogleSubmitting}/>
+                    <Input type="password" placeholder="••••••••" {...field} autoComplete="current-password" disabled={isSubmitting || isGoogleSubmitting}/>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
