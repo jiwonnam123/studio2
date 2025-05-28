@@ -34,17 +34,16 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
 
   const handleFileChange = useCallback((file: UploadedFile | null) => {
     setUploadedFile(file);
-    // If file is removed or changes to a non-success state (e.g. error from FileUploadZone),
-    // reset the excelValidationState. The ExcelUploadTab will re-validate if a new 'success' file is provided.
     if (!file || file.status !== 'success') {
       if (excelValidationState !== null) { 
          setExcelValidationState(null); 
       }
     }
-  }, [excelValidationState]); // Dependency on excelValidationState is to allow conditional reset
+  }, [excelValidationState]);
 
   const handleExcelValidationComplete = useCallback((result: ExcelValidationResult) => {
     setExcelValidationState(prevState => {
+      // Avoid unnecessary re-renders if the result is the same
       if (JSON.stringify(prevState) === JSON.stringify(result)) {
         return prevState;
       }
@@ -54,7 +53,6 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
 
   const handleSubmitInquiry = async () => {
     setIsSubmitting(true);
-    // Simulate API call
     await new Promise(resolve => setTimeout(resolve, 1500));
 
     if (activeTab === 'excel') {
@@ -82,7 +80,6 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
         return;
       }
     } else if (activeTab === 'direct') {
-      // Placeholder for direct entry submission
       console.log('Submitting direct entry form...');
       toast({
         title: "Inquiry Submitted (Direct)",
@@ -104,13 +101,13 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
     }
     onOpenChange(isOpen);
   };
-
-  // Effect to reset states when modal is programmatically closed or 'open' prop changes to false
+  
   useEffect(() => {
     if (!open) {
       setUploadedFile(null);
       setExcelValidationState(null);
-      // setActiveTab('excel'); 
+      // Optionally reset activeTab if needed:
+      // setActiveTab('excel');
     }
   }, [open]);
 

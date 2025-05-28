@@ -126,17 +126,17 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
         workerRef.current = null;
       }
     };
-  }, [uploadedFileState, onValidationComplete]);
+  }, [uploadedFileState, onValidationComplete]); // onValidationComplete is stable due to useCallback in parent
 
 
   const handleRemoveFile = () => {
     onFileChange(null); // This will trigger InquiryModal's handleFileChange, which resets excelValidationState
+                         // and also triggers the useEffect above to clean up local states and worker.
   };
   
-  // Display error from FileUploadZone if it exists and no parsing has started for a new file
   const fileUploadZoneError = uploadedFileState?.status === 'error' ? uploadedFileState.errorMessage : null;
-  // Validation error from parsing (takes precedence if parsing happened)
   const parsingValidationError = excelValidationState?.error;
+  // Display parsing error if it exists, otherwise display file upload zone error
   const finalErrorToDisplay = parsingValidationError ?? fileUploadZoneError;
 
   const isFileValidAndHasDataForSubmission = uploadedFileState?.status === 'success' && !parsingValidationError && excelValidationState?.hasData;
