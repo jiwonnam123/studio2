@@ -22,6 +22,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { useState } from "react";
 
 type LoginFormValues = z.infer<typeof LoginSchema>;
 
@@ -34,13 +35,14 @@ const GoogleIcon = () => (
     <path d="M2 12c0-5.52 4.48-10 10-10v5.5L2 12z" fill="#FBBC05"/>
     <path d="M22 12c0 5.52-4.48 10-10 10v-5.5L22 12z" fill="#34A853"/>
     <path d="M16.5 12c0-2.48-1.01-4.7-2.64-6.34l-3.86 3.86c.86.86 1.34 2.03 1.34 3.32s-.48 2.46-1.34 3.32l3.86 3.86C15.49 16.7 16.5 14.48 16.5 12z" fill="#FFFFFF"/>
-    <path d="M7.5 12c0 2.48 1.01 4.7 2.64 6.34l3.86-3.86c-.86-.86-1.34-2.03-1.34-3.32s.48-2.46 1.34-3.32L10.14 5.66C8.51 7.3 7.5 9.52 7.5 12z" fill="#FFFFFF"/>
+    <path d="M7.5 12c0 2.48 1.01 4.7 2.64 6.34l3.86-3.86c-.86-.86-1.34-2.03-1.34-3.32s.48 2.46 1.34-3.32L10.14 5.66C8.51 7.3 7.5 9.52 7.5 12z" fill="#FFFFFF"/>
   </svg>
 );
 
 
 export function LoginForm() {
-  const { login, isLoading } = useAuth();
+  const { login } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(LoginSchema),
     defaultValues: {
@@ -50,18 +52,37 @@ export function LoginForm() {
   });
 
   async function onSubmit(data: LoginFormValues) {
+    setIsSubmitting(true);
     try {
-      await login(data.email); // Simplified login, password not used in mock
+      await login(data.email, data.password); 
       toast({
         title: "Login Successful",
         description: "Welcome back!",
       });
-    } catch (error) {
+      // Navigation is handled by AuthContext or AppLayout after successful Firebase login
+    } catch (error: any) {
+      let errorMessage = "An unexpected error occurred.";
+      if (error.code) {
+        switch (error.code) {
+          case 'auth/user-not-found':
+          case 'auth/wrong-password':
+          case 'auth/invalid-credential':
+            errorMessage = "Invalid email or password.";
+            break;
+          case 'auth/invalid-email':
+            errorMessage = "Invalid email format.";
+            break;
+          default:
+            errorMessage = error.message || "Login failed. Please try again.";
+        }
+      }
       toast({
         title: "Login Failed",
-        description: (error as Error).message || "An unexpected error occurred.",
+        description: errorMessage,
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -69,7 +90,7 @@ export function LoginForm() {
     // Placeholder for Google login logic
     toast({
       title: "Google Login",
-      description: "Google login functionality is not yet implemented.",
+      description: "Google login functionality is not yet implemented with Firebase.",
       variant: "default",
     });
   };
@@ -111,8 +132,8 @@ export function LoginForm() {
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Login
             </Button>
           </form>
@@ -123,7 +144,7 @@ export function LoginForm() {
             OR
           </span>
         </div>
-        <Button variant="outline" className="w-full" onClick={handleGoogleLogin} disabled={isLoading}>
+        <Button variant="outline" className="w-full" onClick={handleGoogleLogin} disabled={isSubmitting}>
           <GoogleIcon />
           Login with Google
         </Button>
@@ -139,4 +160,3 @@ export function LoginForm() {
     </Card>
   );
 }
-

@@ -21,11 +21,13 @@ import { RegisterSchema } from "@/lib/schemas";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { useState } from "react";
 
 type RegisterFormValues = z.infer<typeof RegisterSchema>;
 
 export function RegisterForm() {
-  const { register, isLoading } = useAuth();
+  const { register } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(RegisterSchema),
     defaultValues: {
@@ -37,18 +39,38 @@ export function RegisterForm() {
   });
 
   async function onSubmit(data: RegisterFormValues) {
+    setIsSubmitting(true);
     try {
-      await register(data.email, data.name); // Pass name to register function
+      await register(data.email, data.name, data.password); 
       toast({
         title: "Registration Successful",
-        description: "Your account has been created.",
+        description: "Your account has been created. You are now logged in.",
       });
-    } catch (error) {
+       // Navigation is handled by AuthContext or AppLayout after successful Firebase registration
+    } catch (error: any) {
+      let errorMessage = "An unexpected error occurred.";
+       if (error.code) {
+        switch (error.code) {
+          case 'auth/email-already-in-use':
+            errorMessage = "This email address is already in use.";
+            break;
+          case 'auth/invalid-email':
+            errorMessage = "Invalid email format.";
+            break;
+          case 'auth/weak-password':
+            errorMessage = "Password is too weak. Please choose a stronger password.";
+            break;
+          default:
+            errorMessage = error.message || "Registration failed. Please try again.";
+        }
+      }
       toast({
         title: "Registration Failed",
-        description: (error as Error).message || "An unexpected error occurred.",
+        description: errorMessage,
         variant: "destructive",
       });
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -115,8 +137,8 @@ export function RegisterForm() {
                 </FormItem>
               )}
             />
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Create Account
             </Button>
           </form>

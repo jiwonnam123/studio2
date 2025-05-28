@@ -39,7 +39,7 @@ export interface FormDefinition {
   fields: FormFieldDefinition[];
   createdAt: string; // ISO date string
   updatedAt: string; // ISO date string
-  userId?: string; // To associate form with a user
+  userId?: string; // To associate form with a user (Firebase UID)
 }
 
 export interface FormSubmission {
@@ -47,11 +47,12 @@ export interface FormSubmission {
   formId: string;
   data: Record<string, any>; // Field names as keys
   submittedAt: string; // ISO date string
-  userId?: string; // To associate submission with a user
+  userId?: string; // To associate submission with a user (Firebase UID)
 }
 
 export interface UserProfile {
-  id: string;
-  email: string;
-  name?: string;
+  id: string; // Firebase UID will be mapped to this
+  email: string | null; // Firebase email can be null
+  name?: string | null; // Firebase displayName can be null
 }
+
