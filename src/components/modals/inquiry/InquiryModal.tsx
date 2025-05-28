@@ -35,9 +35,7 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
   const handleFileChange = useCallback((file: UploadedFile | null) => {
     setUploadedFile(file);
     if (!file || file.status !== 'success') {
-      // Reset validation state if file is removed or not successful
-      // Only update if it's not already null to prevent potential loop with ExcelUploadTab's useEffect
-      if (excelValidationState !== null) { 
+      if (excelValidationState !== null) {
         setExcelValidationState(null);
       }
     }
@@ -97,11 +95,13 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
     onOpenChange(false); 
   };
   
-  const handleModalClose = (isOpen: boolean) => {
+  const handleModalOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
+       // Reset states when modal is closed
        setUploadedFile(null); 
        setExcelValidationState(null);
-       // setActiveTab('excel'); // Resetting tab might not be desired if user reopens
+       // Optionally reset active tab:
+       // setActiveTab('excel');
     }
     onOpenChange(isOpen);
   };
@@ -117,12 +117,13 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
   const isDirectEntrySubmitDisabled = () => {
     if (activeTab !== 'direct') return false;
     if (isSubmitting) return true;
+    // Add actual validation for direct entry if needed
     return false; 
   };
 
 
   return (
-    <Dialog open={open} onOpenChange={handleModalClose}>
+    <Dialog open={open} onOpenChange={handleModalOpenChange}>
       <DialogContent className="max-w-[1000px] w-[95vw] sm:w-[90vw] md:w-[1000px] p-0 data-[state=open]:h-auto sm:h-[calc(100vh-100px)] sm:max-h-[700px] flex flex-col">
         <DialogHeader className="p-6 pb-0 text-center sm:text-center"> 
           <DialogTitle className="text-2xl">Submit Inquiry</DialogTitle>
@@ -143,7 +144,7 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
                 uploadedFileState={uploadedFile} 
                 onFileChange={handleFileChange}
                 onValidationComplete={handleExcelValidationComplete}
-                excelValidationState={excelValidationState} // Pass the state here
+                excelValidationState={excelValidationState}
               />
             </TabsContent>
             <TabsContent value="direct" className="mt-0 h-full"> 
