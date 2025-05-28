@@ -6,8 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Download, Loader2, AlertTriangle, CheckCircle2, FileText, XCircle } from 'lucide-react';
 import { FileUploadZone } from './FileUploadZone';
 import type { UploadedFile, ExcelValidationResult } from '@/types/inquiry';
-// XLSX import is no longer needed here as parsing moves to worker
-// import * as XLSX from 'xlsx';
+import type { WorkerParseResponse } from '@/workers/excelParser.worker';
 import {
   Table,
   TableBody,
@@ -19,8 +18,6 @@ import {
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
-import type { WorkerParseResponse } from '@/workers/excelParser.worker';
-
 
 interface ExcelUploadTabProps {
   uploadedFileState: UploadedFile | null;
@@ -28,15 +25,6 @@ interface ExcelUploadTabProps {
   onValidationComplete: (result: ExcelValidationResult) => void;
   excelValidationState: ExcelValidationResult | null;
 }
-
-const customColumnHeaders = [
-  "캠페인 키",
-  "캠페인 명",
-  "ADID / IDFA",
-  "이름",
-  "연락처",
-  "비고"
-];
 
 const formatBytes = (bytes: number, decimals = 2) => {
   if (bytes === 0) return '0 Bytes';
@@ -55,7 +43,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
 
   const handleDownloadTemplate = () => {
     const link = document.createElement('a');
-    link.href = '/inquiry_template.xlsx'; // Assuming template is in public folder
+    link.href = '/inquiry_template.xlsx';
     link.setAttribute('download', 'inquiry_template.xlsx');
     document.body.appendChild(link);
     link.click();
@@ -67,17 +55,16 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
       setIsParsing(true);
       setPreviewData(null);
       setTotalDataRowsAfterParse(0);
-      // Reset parent's validation state immediately to clear previous messages
-      onValidationComplete({ error: null, hasData: false, totalDataRows: 0 });
+      // Reset parent's validation state slightly differently to avoid loops if worker init fails
+      // onValidationComplete({ error: "Processing...", hasData: false, totalDataRows: 0 });
+
 
       if (workerRef.current) {
-        workerRef.current.terminate(); // Terminate any existing worker
+        workerRef.current.terminate();
       }
 
-      // Note: Ensure your tsconfig.json and Next.js version support this worker instantiation.
-      // For Next.js 13+ App Router, `new URL` with `import.meta.url` is standard.
       const worker = new Worker(new URL('@/workers/excelParser.worker.ts', import.meta.url), {
-        type: 'module', // Important for using ES modules in worker
+        type: 'module',
       });
       workerRef.current = worker;
 
@@ -94,24 +81,16 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
 
         setPreviewData(pData);
         setTotalDataRowsAfterParse(tRows || 0);
-
-        let finalErrorMsg = workerError;
-        // If worker reports headersValid but no data, it's not an "error" for submission blocking,
-        // but UI should inform. The `hasData` for onValidationComplete handles this.
-        if (!finalErrorMsg && headersValid && !dataExistsInSheet) {
-            // This message is for UI feedback, not necessarily a submission blocker
-            // The parent's excelValidationState.error will be null, but hasData will be false.
-        }
         
         onValidationComplete({
-          error: finalErrorMsg,
-          hasData: headersValid && dataExistsInSheet, // Data is submittable if headers are valid AND actual data rows exist
+          error: workerError,
+          hasData: headersValid && dataExistsInSheet,
           totalDataRows: tRows || 0,
         });
 
         setIsParsing(false);
         if (workerRef.current) {
-          workerRef.current.terminate();
+          workerRef.current.terminate(); // Terminate after use
           workerRef.current = null;
         }
       };
@@ -125,13 +104,12 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
         });
         setIsParsing(false);
         if (workerRef.current) {
-          workerRef.current.terminate();
+          workerRef.current.terminate(); // Terminate on error
           workerRef.current = null;
         }
       };
 
     } else if (!uploadedFileState || uploadedFileState.status === 'idle' || uploadedFileState.status === 'error') {
-      // File removed, or error from FileUploadZone, or idle state
       setIsParsing(false);
       setPreviewData(null);
       setTotalDataRowsAfterParse(0);
@@ -140,32 +118,28 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
         workerRef.current = null;
       }
       const initialError = uploadedFileState?.status === 'error' ? uploadedFileState.errorMessage : null;
-      if (initialError !== excelValidationState?.error) { // Prevent loop if error is already set
+       // Only call onValidationComplete if the error state actually changes to avoid loops
+      if (initialError !== excelValidationState?.error || excelValidationState?.hasData || excelValidationState?.totalDataRows !== 0) {
           onValidationComplete({ error: initialError, hasData: false, totalDataRows: 0 });
       }
     }
     
-    // Cleanup worker on component unmount
     return () => {
       if (workerRef.current) {
         workerRef.current.terminate();
         workerRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [uploadedFileState, onValidationComplete]);
+  }, [uploadedFileState, onValidationComplete, excelValidationState?.error, excelValidationState?.hasData, excelValidationState?.totalDataRows]);
 
 
   const handleRemoveFile = () => {
-    onFileChange(null); // This will trigger the useEffect above to clear states
+    onFileChange(null); 
   };
   
   const validationErrorToDisplay = excelValidationState?.error;
-  // Submission is possible if no error from worker/validation AND data exists (headers valid + data rows)
   const isFileValidAndHasDataForSubmission = uploadedFileState?.status === 'success' && !validationErrorToDisplay && excelValidationState?.hasData;
-  // Preview can be shown if previewData is available (even with header errors, to help user debug)
   const hasPreviewableData = previewData && previewData.length > 0;
-
 
   if (isParsing) {
     return (
@@ -178,8 +152,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
 
   return (
     <div className="space-y-6 py-2">
-      {!uploadedFileState || uploadedFileState.status === 'idle' || (uploadedFileState.status === 'error' && !previewData) ? (
-        // Show Download Template & FileUploadZone only if no file is active or if there was an initial upload error
+      {!uploadedFileState || uploadedFileState.status === 'idle' || (uploadedFileState.status === 'error' && !previewData)? (
         <>
           <div className="flex justify-end items-center">
             <Button variant="outline" onClick={handleDownloadTemplate} className="w-full sm:w-auto">
@@ -188,7 +161,6 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
             </Button>
           </div>
           <FileUploadZone onFileAccepted={onFileChange} />
-          {/* Display error from FileUploadZone itself, if any */}
           {uploadedFileState?.status === 'error' && uploadedFileState.errorMessage && !previewData && (
              <Card className="border-destructive bg-destructive/10 mt-4">
                 <CardHeader>
@@ -203,7 +175,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
             </Card>
           )}
         </>
-      ) : uploadedFileState && ( // File is active (success, or error after parsing attempt)
+      ) : uploadedFileState && ( 
         <div className="p-4 border rounded-lg bg-muted/30">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -218,8 +190,9 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              {uploadedFileState.status === 'success' && !validationErrorToDisplay && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+              {uploadedFileState.status === 'success' && !validationErrorToDisplay && excelValidationState?.hasData && <CheckCircle2 className="w-5 h-5 text-green-500" />}
               {validationErrorToDisplay && <AlertTriangle className="w-5 h-5 text-destructive" />}
+              {uploadedFileState.status === 'success' && !validationErrorToDisplay && excelValidationState && !excelValidationState.hasData && <AlertTriangle className="w-5 h-5 text-orange-500" />}
               <Button variant="ghost" size="icon" onClick={handleRemoveFile}>
                 <XCircle className="w-5 h-5 text-muted-foreground hover:text-destructive" />
               </Button>
@@ -228,8 +201,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
         </div>
       )}
 
-      {/* Validation and Preview Section - shown if a file was processed (even with errors, if previewData exists) */}
-      {uploadedFileState && uploadedFileState.status === 'success' && ( // Only show this section if initial upload was 'success'
+      {uploadedFileState && uploadedFileState.status === 'success' && (
         <>
           {validationErrorToDisplay && (
             <Card className="border-destructive bg-destructive/10">
@@ -241,14 +213,11 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
               </CardHeader>
               <CardContent>
                 <p className="text-destructive">{validationErrorToDisplay}</p>
-                {excelValidationState?.totalDataRows === 0 && excelValidationState.hasData === false && !validationErrorToDisplay && (
-                    <p className="text-orange-600 mt-1">Headers are valid, but no data rows found to submit.</p>
-                )}
               </CardContent>
             </Card>
           )}
 
-          {isFileValidAndHasDataForSubmission && ( // Successfully validated and has data
+          {isFileValidAndHasDataForSubmission && (
             <Card className="border-green-500 bg-green-500/10">
               <CardHeader>
                 <CardTitle className="flex items-center text-green-600 text-lg">
@@ -262,7 +231,6 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
             </Card>
           )}
           
-          {/* Case: Headers valid, but no data rows */}
           {uploadedFileState.status === 'success' && !validationErrorToDisplay && excelValidationState && !excelValidationState.hasData && (
             <Card className="border-orange-500 bg-orange-500/10">
                 <CardHeader>
@@ -272,7 +240,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
                 </CardTitle>
                 </CardHeader>
                 <CardContent>
-                <p className="text-orange-700">The Excel file headers are valid, but no data rows were found to submit.</p>
+                <p className="text-orange-700">The Excel file headers are valid, but no data rows were found. Please ensure your file contains data after the header row.</p>
                 </CardContent>
             </Card>
             )}
@@ -289,8 +257,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
                         {previewData[0].map((header, index) => (
                           <TableHead key={`header-${index}`} className={cn(
                             "px-3 py-2 whitespace-nowrap font-semibold",
-                            // Highlight header mismatch if headers are invalid
-                            excelValidationState?.error && !excelValidationState?.hasData && header?.trim() !== customColumnHeaders[index]?.trim() && "bg-destructive/30 text-destructive-foreground"
+                            excelValidationState?.error && !excelValidationState?.hasData && header?.trim() !== (excelValidationState?.error?.includes("Expected:") ? excelValidationState.error.split("Expected: \"")[1]?.split("\"")[0]?.split(", ")[index] : "INVALID_HEADER_CHECK")  && "bg-destructive/30 text-destructive-foreground"
                           )}>
                             {header || `Column ${index + 1}`}
                           </TableHead>
@@ -305,7 +272,6 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
                               {String(cell)}
                             </TableCell>
                           ))}
-                          {/* Fill empty cells if row is shorter than header */}
                           {Array.from({ length: Math.max(0, previewData[0].length - row.length) }).map((_, emptyCellIndex) => (
                             <TableCell key={`empty-${rowIndex}-${emptyCellIndex}`} className="px-3 py-1.5 whitespace-nowrap truncate max-w-[200px]"></TableCell>
                           ))}
