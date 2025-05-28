@@ -69,11 +69,17 @@ export interface SubmittedInquiryDataRow {
   [key: string]: string; // Allows for potential extra columns if needed, though we aim for 6 fixed
 }
 
-export interface SubmittedInquiry {
-  id?: string; // Firestore document ID, will be auto-generated
+// Base type for data as stored in Firestore or being prepared for storage
+// `submittedAt` is special: serverTimestamp() on write, Firestore Timestamp on read.
+export interface SubmittedInquiryBase {
   userId: string;
-  submittedAt: any; // Firestore ServerTimestamp
   source: 'excel' | 'direct';
   fileName?: string; // For excel uploads
   data: SubmittedInquiryDataRow[];
+}
+
+// Type for data after fetching from Firestore and processing for client-side use
+export interface SubmittedInquiry extends SubmittedInquiryBase {
+  id: string; // Firestore document ID
+  submittedAt: string; // ISO date string for client-side display/sorting
 }
