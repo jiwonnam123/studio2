@@ -114,6 +114,7 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
         </Tabs>
         
         <DialogFooter className="p-6 border-t bg-muted/30 flex-shrink-0 flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-0">
+          {/* Cancel button removed as per previous request */}
           <Button onClick={handleSubmitInquiry} className="w-full sm:w-auto" disabled={isSubmitting || (activeTab === 'excel' && (!uploadedFile || uploadedFile.status !== 'success'))}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Submit Inquiry
