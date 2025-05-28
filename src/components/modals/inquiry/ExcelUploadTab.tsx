@@ -36,9 +36,7 @@ export function ExcelUploadTab({ onFileAccepted }: ExcelUploadTabProps) {
             Download Excel Template
           </Button>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Download the template to ensure your data is in the correct format for upload.
-        </p>
+        {/* The descriptive text <p> tag has been removed from here */}
       </div>
       <FileUploadZone onFileAccepted={onFileAccepted} />
     </div>
