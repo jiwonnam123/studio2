@@ -43,11 +43,22 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
   const [history, setHistory] = useState<string[][][]>(() => [initialGridData().map(row => [...row])]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState(0);
 
-  const [isSelecting, setIsSelecting] = useState(false);
+  const [isSelectingState, setIsSelectingInternal] = useState(false);
+  const isSelectingRef = useRef(false); // Ref to hold the current state of isSelecting
+
   const [selectionStartCell, setSelectionStartCell] = useState<CellPosition | null>(null);
   const [selectionEndCell, setSelectionEndCell] = useState<CellPosition | null>(null);
   
   const tableRef = useRef<HTMLTableElement>(null);
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({}); // Correct initialization
+
+  // Wrapper to keep ref in sync with state
+  const setIsSelecting = useCallback((value: boolean) => {
+    console.log(`[DirectEntryTab setIsSelecting] Setting to: ${value}. Current ref: ${isSelectingRef.current}`);
+    isSelectingRef.current = value;
+    setIsSelectingInternal(value);
+  }, []);
+
 
   useImperativeHandle(ref, () => ({
     getGridData: () => {
@@ -130,12 +141,13 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
   }, [selectionStartCell, selectionEndCell]);
   
   const handleDocumentMouseUp = useCallback(() => {
-    if (isSelecting) {
-        setIsSelecting(false);
-        // After a drag selection, we generally don't want to auto-focus a specific input.
-        // If it was a simple click, the input itself will handle focus.
+    if (isSelectingRef.current) { // Use ref
+      console.log('[DirectEntryTab handleDocumentMouseUp] isSelectingRef.current is true. Setting isSelecting to false.');
+      setIsSelecting(false); // Use wrapper
+    } else {
+      console.log('[DirectEntryTab handleDocumentMouseUp] isSelectingRef.current is false. No change.');
     }
-  }, [isSelecting]);
+  }, [setIsSelecting]);
   
   useEffect(() => {
     document.addEventListener('mouseup', handleDocumentMouseUp);
@@ -145,16 +157,20 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
   }, [handleDocumentMouseUp]);
 
   const handleCellMouseDown = useCallback((r: number, c: number) => {
-    setIsSelecting(true);
+    console.log(`[DirectEntryTab handleCellMouseDown] Mouse down on cell ${r}-${c}. Setting isSelecting to true.`);
+    setIsSelecting(true); // Use wrapper
     setSelectionStartCell({ r, c });
     setSelectionEndCell({ r, c }); 
-  }, []);
+  }, [setIsSelecting]);
   
   const handleCellMouseEnter = useCallback((r: number, c: number) => {
-    if (isSelecting) {
+    console.log(`[DirectEntryTab handleCellMouseEnter] Mouse enter on cell ${r}-${c}. isSelectingRef.current: ${isSelectingRef.current}`);
+    if (isSelectingRef.current) { // Use ref
+      console.log(`[DirectEntryTab handleCellMouseEnter] Updating selectionEndCell to ${r}-${c}`);
       setSelectionEndCell({ r, c });
     }
-  }, [isSelecting]);
+  }, []); // No dependency on isSelectingState, relies on ref. setSelectionEndCell is stable.
+
 
   useEffect(() => {
     const handleGlobalKeyDown = (event: KeyboardEvent) => {
@@ -182,7 +198,7 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
         }
       } else if ((event.key === 'Delete' || event.key === 'Backspace')) {
         const selection = getNormalizedSelection();
-        if (selection && !isInputFocused) { 
+        if (selection && !isInputFocused && isSelectingRef.current) { 
             event.preventDefault(); 
             let changed = false;
             const newGridData = gridData.map((row, rIdx) => {
@@ -204,9 +220,12 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
                 setGridDataInternal(newGridData);
                 pushStateToHistory(newGridData);
             }
-            // Do not auto-focus after deleting a range. User can click to focus.
             setSelectionStartCell(null);
             setSelectionEndCell(null);
+            // If we just cleared selection, make sure isSelecting is false
+            if (isSelectingRef.current) {
+                setIsSelecting(false);
+            }
         }
       }
     };
@@ -215,11 +234,11 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
     return () => {
       document.removeEventListener('keydown', handleGlobalKeyDown);
     };
-  }, [history, currentHistoryIndex, getNormalizedSelection, gridData, pushStateToHistory, selectionStartCell]);
+  }, [history, currentHistoryIndex, getNormalizedSelection, gridData, pushStateToHistory, setIsSelecting]);
 
   const isCellSelected = (r: number, c: number): boolean => {
     const selection = getNormalizedSelection();
-    if (!selection) return false;
+    if (!selection || !isSelectingState) return false; // Check state for styling
     return r >= selection.start.r && r <= selection.end.r &&
            c >= selection.start.c && c <= selection.end.c;
   };
@@ -238,11 +257,20 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
     }
     setSelectionStartCell(null);
     setSelectionEndCell(null);
+    if (isSelectingRef.current) { // Use ref
+        setIsSelecting(false); // Use wrapper
+    }
     if (tableRef.current) {
         const firstInput = tableRef.current.querySelector<HTMLInputElement>('input[data-row="0"][data-col="0"]');
         firstInput?.focus();
     }
-  }, [gridData, history.length, currentHistoryIndex, pushStateToHistory]);
+  }, [gridData, history.length, currentHistoryIndex, pushStateToHistory, setIsSelecting]);
+
+  // Sync ref with state (optional, mostly for debugging if needed elsewhere)
+  useEffect(() => {
+    isSelectingRef.current = isSelectingState;
+  }, [isSelectingState]);
+
 
   return (
     <div className="space-y-4 py-2 flex flex-col h-full">
@@ -264,7 +292,7 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
           <table 
             ref={tableRef} 
             className="min-w-full divide-y divide-border text-sm"
-            style={{ userSelect: isSelecting ? 'none' : 'auto' }} 
+            style={{ userSelect: isSelectingState ? 'none' : 'auto' }} 
           >
             <thead className="bg-muted/50 sticky top-0 z-10">
               <tr>
@@ -290,7 +318,7 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
                         key={`cell-${rowIndex}-${colIndex}`} 
                         className={cn(
                           "p-0 relative",
-                           isCellSelected(rowIndex, colIndex) && "bg-primary/30" // Apply background to TD for selection
+                           isCellSelected(rowIndex, colIndex) && "bg-primary/30" 
                         )}
                         onMouseDown={() => handleCellMouseDown(rowIndex, colIndex)}
                         onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
@@ -300,16 +328,18 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
                         value={cell}
                         onChange={(e) => handleInputChange(rowIndex, colIndex, e)}
                         onPaste={(e) => handlePaste(rowIndex, colIndex, e)}
-                        onFocus={(e) => {
-                            if(isSelecting) setIsSelecting(false); // If an input is focused, stop cell selection mode
-                        }}
                         className={cn(
                             "w-full h-full px-2 py-1.5 rounded-none focus:ring-1 focus:ring-primary focus:z-30 focus:relative focus:shadow-md",
-                            "border-2 border-transparent" // Keep border transparent to avoid layout shifts
+                            "border-2 border-transparent" 
                         )}
-                        aria-label={`Cell for ${customColumnHeaders[colIndex]}, row ${rowIndex + 1}`}
+                        aria-label={`${customColumnHeaders[colIndex]}, row ${rowIndex + 1}`}
                         data-row={rowIndex}
                         data-col={colIndex}
+                        ref={(el) => {
+                            if (inputRefs.current) {
+                                inputRefs.current[`${rowIndex}-${colIndex}`] = el;
+                            }
+                        }}
                       />
                     </td>
                   ))}
@@ -325,3 +355,4 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
   );
 });
 
+DirectEntryTab.displayName = 'DirectEntryTab';
