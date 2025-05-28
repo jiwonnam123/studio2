@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Download, Loader2, AlertTriangle, CheckCircle, FileText } from 'lucide-react';
+import { Download, Loader2, AlertTriangle, CheckCircle2, FileText, XCircle } from 'lucide-react';
 import { FileUploadZone } from './FileUploadZone';
 import type { UploadedFile, ExcelValidationResult } from '@/types/inquiry';
 import * as XLSX from 'xlsx';
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 
 interface ExcelUploadTabProps {
   uploadedFileState: UploadedFile | null;
@@ -34,7 +35,14 @@ const customColumnHeaders = [
   "비고"
 ];
 
-const MAX_PREVIEW_ROWS = 10;
+const formatBytes = (bytes: number, decimals = 2) => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+};
 
 export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationComplete, excelValidationState }: ExcelUploadTabProps) {
   const [previewData, setPreviewData] = useState<string[][] | null>(null);
@@ -43,7 +51,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
 
   const handleDownloadTemplate = () => {
     const link = document.createElement('a');
-    link.href = '/inquiry_template.xlsx';
+    link.href = '/inquiry_template.xlsx'; // Ensure this file exists in your /public folder
     link.setAttribute('download', 'inquiry_template.xlsx');
     document.body.appendChild(link);
     link.click();
@@ -71,27 +79,29 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
              throw new Error("No sheets found in the Excel file.");
           }
           const worksheet = workbook.Sheets[sheetName];
+          // header: 1 ensures first row is treated as array of strings
+          // blankrows: false skips empty rows
           const jsonData = XLSX.utils.sheet_to_json<any>(worksheet, { header: 1, blankrows: false });
 
           const actualDataRows = jsonData.length > 1 ? jsonData.length - 1 : 0;
           setTotalDataRowsAfterParse(actualDataRows);
 
-          if (!jsonData || jsonData.length === 0) {
+          if (!jsonData || jsonData.length === 0) { // No data at all (not even headers)
             validationResult = { error: "The Excel file is empty or could not be read.", hasData: false, totalDataRows: 0 };
           } else {
             const headersFromExcel = jsonData[0] as string[];
-            if (!headersFromExcel || headersFromExcel.length === 0) {
+            if (!headersFromExcel || headersFromExcel.length === 0) { // Headers row is empty
                 validationResult = { error: "The Excel file is missing headers.", hasData: false, totalDataRows: actualDataRows };
             } else if (headersFromExcel.length !== customColumnHeaders.length ||
                 !headersFromExcel.every((header, index) => header?.trim() === customColumnHeaders[index]?.trim())) {
               validationResult = {
                 error: `Invalid headers. Expected: "${customColumnHeaders.join(", ")}". Found: "${headersFromExcel.join(", ")}". Please use the provided template.`,
-                hasData: actualDataRows > 0, // Data might exist even with wrong headers
+                hasData: actualDataRows > 0,
                 totalDataRows: actualDataRows
               };
-              setPreviewData(jsonData.slice(0, MAX_PREVIEW_ROWS + 1));
+              setPreviewData(jsonData); // Show preview even with wrong headers to help debug
             } else {
-              setPreviewData(jsonData.slice(0, MAX_PREVIEW_ROWS + 1));
+              setPreviewData(jsonData); // Headers are valid, show all data
               validationResult = { error: null, hasData: actualDataRows > 0, totalDataRows: actualDataRows };
             }
           }
@@ -116,8 +126,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
       setIsParsing(false);
       onValidationComplete(validationResult);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isParsing, onValidationComplete]); // Removed `setParseError` as it's handled by `onValidationComplete`
+  }, [isParsing, onValidationComplete]);
 
   useEffect(() => {
     if (uploadedFileState?.file && uploadedFileState.status === 'success') {
@@ -125,20 +134,22 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
     } else {
       setPreviewData(null);
       setTotalDataRowsAfterParse(0);
-      setIsParsing(false);
-
-      if (uploadedFileState?.status === 'error') {
-        onValidationComplete({ error: uploadedFileState.errorMessage || "File upload error.", hasData: false, totalDataRows: 0 });
-      } else if (!uploadedFileState || uploadedFileState.status === 'idle') {
-        onValidationComplete({ error: null, hasData: false, totalDataRows: 0 });
+      // No need to setIsParsing(false) here as processFile handles it.
+      if (!uploadedFileState || uploadedFileState.status === 'idle' || uploadedFileState.status === 'error') {
+         // Reset validation state if file is removed or was never successfully processed.
+         onValidationComplete({ error: uploadedFileState?.errorMessage || null, hasData: false, totalDataRows: 0 });
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uploadedFileState, processFile, onValidationComplete]);
 
   const validationErrorToDisplay = excelValidationState?.error;
   const isSuccessAndHasData = uploadedFileState?.status === 'success' && !validationErrorToDisplay && excelValidationState?.hasData;
   const hasPreviewableData = previewData && previewData.length > 1; // Header + at least one data row
+
+  const handleRemoveFile = () => {
+    onFileChange(null); // This will trigger the useEffect above to clear states
+  };
+
 
   if (isParsing) {
     return (
@@ -158,21 +169,39 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
         </Button>
       </div>
 
-      <FileUploadZone onFileAccepted={onFileChange} />
-
-      {uploadedFileState?.status === 'error' && uploadedFileState.errorMessage && (
-         <Card className="border-destructive bg-destructive/10">
-          <CardHeader>
-            <CardTitle className="flex items-center text-destructive text-lg">
-              <AlertTriangle className="mr-2 h-5 w-5" />
-              File Upload Error
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-destructive">{uploadedFileState.errorMessage}</p>
-          </CardContent>
-        </Card>
+      {(!uploadedFileState || uploadedFileState.status === 'error' || uploadedFileState.status === 'idle') && !isParsing && (
+        <FileUploadZone onFileAccepted={onFileChange} />
       )}
+
+      {uploadedFileState && !isParsing && (
+        <div className="p-4 border rounded-lg bg-muted/30">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <FileText className="w-6 h-6 text-primary" />
+              <div>
+                <p className="text-sm font-medium text-foreground truncate max-w-[200px] sm:max-w-xs md:max-w-sm">
+                  {uploadedFileState.name}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {formatBytes(uploadedFileState.size)}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+                {uploadedFileState.status === 'uploading' && <Loader2 className="w-5 h-5 text-primary animate-spin" />}
+                {uploadedFileState.status === 'success' && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+                {uploadedFileState.status === 'error' && <XCircle className="w-5 h-5 text-destructive" />}
+                 <Button variant="ghost" size="icon" onClick={handleRemoveFile}>
+                    <XCircle className="w-5 h-5 text-muted-foreground hover:text-destructive" />
+                 </Button>
+            </div>
+          </div>
+           {uploadedFileState.status === 'error' && uploadedFileState.errorMessage && (
+             <p className="text-xs text-destructive mt-1">{uploadedFileState.errorMessage}</p>
+           )}
+        </div>
+      )}
+
 
       {validationErrorToDisplay && (
          <Card className="border-destructive bg-destructive/10">
@@ -184,7 +213,9 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
           </CardHeader>
           <CardContent>
             <p className="text-destructive">{validationErrorToDisplay}</p>
-            {excelValidationState?.hasData && <p className="text-destructive mt-1">Data was found, but headers are incorrect. Please use the template.</p>}
+            {excelValidationState?.hasData && previewData && previewData.length <=1 && <p className="text-destructive mt-1">No data rows found despite potentially correct headers.</p>}
+            {excelValidationState?.hasData && !excelValidationState?.error && previewData && previewData.length <=1 && <p className="text-orange-600 mt-1">Headers are valid, but no data rows found.</p>}
+
           </CardContent>
         </Card>
       )}
@@ -193,7 +224,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
          <Card className="border-green-500 bg-green-500/10">
           <CardHeader>
             <CardTitle className="flex items-center text-green-600 text-lg">
-              <CheckCircle className="mr-2 h-5 w-5" />
+              <CheckCircle2 className="mr-2 h-5 w-5" />
               File Valid & Ready
             </CardTitle>
           </CardHeader>
@@ -234,13 +265,14 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {previewData.slice(1).map((row, rowIndex) => (
+                  {previewData.slice(1).map((row, rowIndex) => ( // .slice(1) to skip header row in data
                     <TableRow key={`row-${rowIndex}`} className={rowIndex % 2 === 1 ? "bg-muted/20" : ""}>
                       {row.map((cell, cellIndex) => (
                         <TableCell key={`cell-${rowIndex}-${cellIndex}`} className="px-3 py-1.5 whitespace-nowrap truncate max-w-[200px]">
                           {String(cell)}
                         </TableCell>
                       ))}
+                      {/* Pad with empty cells if row has fewer cells than header */}
                       {Array.from({ length: Math.max(0, previewData[0].length - row.length) }).map((_, emptyCellIndex) => (
                         <TableCell key={`empty-${rowIndex}-${emptyCellIndex}`} className="px-3 py-1.5 whitespace-nowrap truncate max-w-[200px]"></TableCell>
                       ))}
@@ -252,14 +284,15 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
             <ScrollBar orientation="horizontal" />
             <ScrollBar orientation="vertical" />
           </ScrollArea>
-           {totalDataRowsAfterParse > MAX_PREVIEW_ROWS && (
+           {totalDataRowsAfterParse > 0 && (
             <p className="text-xs text-muted-foreground mt-1">
-                Showing first {MAX_PREVIEW_ROWS} of {totalDataRowsAfterParse} data rows. All rows will be processed.
+                Displaying all {totalDataRowsAfterParse} data row(s).
             </p>
            )}
         </div>
       )}
-
+      
+      {/* Placeholder when no file is uploaded and not parsing */}
       {!isParsing && !uploadedFileState && !previewData && (
          <div className="flex flex-col items-center justify-center p-4 text-muted-foreground border-2 border-dashed rounded-lg min-h-[100px]">
             <FileText className="w-8 h-8 mb-2"/>
@@ -269,3 +302,4 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
     </div>
   );
 }
+
