@@ -1,8 +1,6 @@
 
 "use client";
 
-// Avatar imports are removed as it's no longer used.
-// import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"; 
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -14,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { LogOut } from "lucide-react";
-import { UserCircleIcon } from '@/components/icons/UserCircleIcon'; // Import the new icon
+import { UserCircleIcon } from '@/components/icons/UserCircleIcon';
 
 export function UserNav() {
   const { user, logout, isAuthenticated } = useAuth();
@@ -28,9 +26,9 @@ export function UserNav() {
       <DropdownMenuTrigger asChild>
         <Button 
           variant="ghost" 
-          className="relative h-20 w-20 rounded-full p-0 flex items-center justify-center hover:bg-accent/50"
+          className="relative h-10 w-10 rounded-full p-0 flex items-center justify-center hover:bg-accent/70" // Reverted button size and hover
         >
-          <UserCircleIcon className="h-18 w-18 text-muted-foreground" />
+          <UserCircleIcon className="!h-9 !w-9 text-muted-foreground" /> {/* Reverted icon size and added !important */}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56" align="end" forceMount>
