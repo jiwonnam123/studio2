@@ -295,7 +295,7 @@ export default function DashboardPage() {
           <>
             <Card>
               <Table>
-                <TableCaption>A list of your submitted inquiries.</TableCaption>
+                {/* <TableCaption>A list of your submitted inquiries.</TableCaption> */}
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[10%]">Submitted Date</TableHead>
@@ -401,3 +401,6 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+
+    
