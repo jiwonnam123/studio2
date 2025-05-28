@@ -14,15 +14,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (!isLoading && isAuthenticated) {
-      // If loading is complete AND user is authenticated,
-      // they shouldn't be on an auth page (login/register). Redirect to dashboard.
       router.replace('/dashboard');
     }
   }, [isAuthenticated, isLoading, router]);
 
   if (isLoading) {
-    // Show a loading indicator while auth state is being determined initially
-    // or during an auth operation triggered from this page.
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -31,8 +27,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   }
 
   if (isAuthenticated) {
-    // If authenticated and useEffect for redirect hasn't kicked in yet,
-    // show a loading/redirecting message to prevent brief flash of login/register form.
     return (
          <div className="flex h-screen w-screen items-center justify-center bg-background">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -41,12 +35,11 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     );
   }
 
-  // If not loading and not authenticated, show the login/register form
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
        <div className="absolute top-8 left-8">
         <Link href="/" className="flex items-center gap-2 text-xl font-semibold text-foreground">
-          <Image src="/adpopcorn-logo.png" alt="Adpopcorn Logo" width={150} height={24} />
+          <Image src="https://placehold.co/150x24.png" alt="Adpopcorn Logo" width={150} height={24} data-ai-hint="Adpopcorn logo" />
         </Link>
       </div>
       <div className="w-full max-w-md">
