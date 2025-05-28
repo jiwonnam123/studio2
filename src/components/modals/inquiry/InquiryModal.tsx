@@ -90,7 +90,7 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
   return (
     <Dialog open={open} onOpenChange={handleModalClose}>
       <DialogContent className="max-w-[1000px] w-[95vw] sm:w-[90vw] md:w-[1000px] p-0 data-[state=open]:h-auto sm:h-[572px] flex flex-col">
-        <DialogHeader className="p-6 pb-0 text-center"> {/* Applied text-center here */}
+        <DialogHeader className="p-6 pb-0 text-center sm:text-center"> {/* Ensure center alignment on sm screens and up */}
           <DialogTitle className="text-2xl">Submit Inquiry</DialogTitle>
           <DialogDescription>
             Upload an Excel file or enter details manually.
@@ -114,7 +114,6 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
         </Tabs>
         
         <DialogFooter className="p-6 border-t bg-muted/30 flex-shrink-0 flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-0">
-          {/* Cancel button removed as per previous request */}
           <Button onClick={handleSubmitInquiry} className="w-full sm:w-auto" disabled={isSubmitting || (activeTab === 'excel' && (!uploadedFile || uploadedFile.status !== 'success'))}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Submit Inquiry
