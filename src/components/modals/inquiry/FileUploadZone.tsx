@@ -7,13 +7,7 @@ import { useDropzone, type Accept } from 'react-dropzone';
 import { UploadCloud, Loader2, CheckCircle2, AlertTriangle, FileText, XCircle } from 'lucide-react';
 import type { UploadedFile } from '@/types/inquiry';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-
-interface FileUploadZoneProps {
-  onFileAccepted: (file: UploadedFile | null) => void;
-  disabled?: boolean;
-  parentIsProcessing?: boolean; // To prevent interaction when parent is busy
-}
+// Button component is not used here anymore
 
 const formatBytes = (bytes: number, decimals = 2) => {
   if (!bytes || bytes === 0) return '0 Bytes';
@@ -27,15 +21,25 @@ const formatBytes = (bytes: number, decimals = 2) => {
 const acceptFileTypes: Accept = {
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
   'application/vnd.ms-excel': ['.xls'],
-  // 'text/csv': ['.csv'], // CSV는 현재 워커에서 명시적으로 처리하지 않음
+  // 'text/csv': ['.csv'], // CSV handling not explicitly in worker yet
 };
 
-export function FileUploadZone({ onFileAccepted, disabled = false, parentIsProcessing = false }: FileUploadZoneProps) {
+const MAX_FILE_SIZE_MB = 5;
+const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
+
+interface FileUploadZoneProps {
+  onFileAccepted: (file: UploadedFile | null) => void;
+  disabled?: boolean; // Renamed from parentIsProcessing for clarity
+}
+
+export function FileUploadZone({ onFileAccepted, disabled = false }: FileUploadZoneProps) {
+  console.log('[FileUploadZone] Rendering. Disabled:', disabled);
+
   const onDrop = useCallback(
     (acceptedFiles: File[], fileRejections: any[]) => {
-      console.log("[FileUploadZone] onDrop called. Accepted:", acceptedFiles.length, "Rejected:", fileRejections.length, "Parent Disabled:", disabled, "Parent Processing:", parentIsProcessing);
-      if (disabled || parentIsProcessing) {
-        console.log("[FileUploadZone] Drop ignored because component is disabled or parent is processing.");
+      console.log("[FileUploadZone] onDrop called. Accepted:", acceptedFiles.length, "Rejected:", fileRejections.length, "Disabled:", disabled);
+      if (disabled) {
+        console.log("[FileUploadZone] Drop ignored because component is disabled.");
         return;
       }
 
@@ -44,12 +48,15 @@ export function FileUploadZone({ onFileAccepted, disabled = false, parentIsProce
         const firstError = rejection.errors[0];
         let errorMessage = "Invalid file.";
         if (firstError.code === 'file-too-large') {
-          errorMessage = `File is too large. Max size is ${formatBytes(5 * 1024 * 1024)}.`;
+          errorMessage = `File is too large. Max size is ${MAX_FILE_SIZE_MB}MB.`;
         } else if (firstError.code === 'file-invalid-type') {
           errorMessage = "Invalid file type. Please upload .xlsx or .xls files.";
+        } else {
+          errorMessage = firstError.message || "File rejected.";
         }
+        
         const errorFile: UploadedFile = {
-          file: rejection.file,
+          file: rejection.file, // fileRejection.file contains the File object
           name: rejection.file.name,
           size: rejection.file.size,
           type: rejection.file.type,
@@ -63,29 +70,32 @@ export function FileUploadZone({ onFileAccepted, disabled = false, parentIsProce
 
       if (acceptedFiles.length > 0) {
         const file = acceptedFiles[0];
+        // File is accepted by dropzone, immediately set status to 'success' for parent to pick up
         const successFile: UploadedFile = {
           file,
           name: file.name,
           size: file.size,
           type: file.type,
-          status: 'success', // Immediately set to 'success' to trigger parent processing
+          status: 'success', 
         };
         console.log("[FileUploadZone] Calling onFileAccepted with SUCCESS file:", successFile.name, successFile.status);
         onFileAccepted(successFile);
       } else {
         console.log("[FileUploadZone] No files to process after drop (neither accepted nor rejected with specific error).");
-        onFileAccepted(null); // Should ideally not happen if dropzone is active
+        // This case should ideally not happen if dropzone is active and gets a file
+        // but if it does, call with null or an error state
+        onFileAccepted(null); 
       }
     },
-    [onFileAccepted, disabled, parentIsProcessing]
+    [onFileAccepted, disabled]
   );
 
   const dropzoneResult = useDropzone({
     onDrop,
     accept: acceptFileTypes,
-    maxSize: 5 * 1024 * 1024, // 5MB
+    maxSize: MAX_FILE_SIZE_BYTES, 
     multiple: false,
-    disabled: disabled || parentIsProcessing, // Disable dropzone if parent is processing
+    disabled: disabled,
   });
 
   if (!dropzoneResult || typeof dropzoneResult.getRootProps !== 'function') {
@@ -106,11 +116,11 @@ export function FileUploadZone({ onFileAccepted, disabled = false, parentIsProce
       className={cn(
         "flex flex-col items-center justify-center w-full h-[185px] border-2 border-dashed rounded-lg cursor-pointer transition-colors",
         isDragActive ? "border-primary bg-primary/10" : "border-border hover:border-primary/70",
-        (disabled || parentIsProcessing) ? "cursor-default opacity-70 bg-muted/50" : ""
+        disabled ? "cursor-default opacity-70 bg-muted/50" : ""
       )}
     >
       <input {...getInputProps()} />
-      {(parentIsProcessing) ? ( // Show loader if parent is processing (e.g., worker busy)
+      {disabled ? ( // Show loader if parent (InquiryModal) is processing
         <Loader2 className="w-10 h-10 mb-3 text-primary animate-spin" />
       ) : (
         <UploadCloud className={cn("w-10 h-10 mb-3", isDragActive ? "text-primary" : "text-muted-foreground")} />
@@ -118,14 +128,14 @@ export function FileUploadZone({ onFileAccepted, disabled = false, parentIsProce
 
       {isDragActive ? (
         <p className="text-lg font-semibold text-primary">Drop the file here ...</p>
-      ) : (parentIsProcessing) ? (
-        <p className="text-sm text-primary">Parent processing...</p> // This message might not be seen if parent hides this zone
+      ) : disabled ? (
+        <p className="text-sm text-primary">Processing file...</p> 
       ) : (
         <>
           <p className="mb-2 text-sm text-muted-foreground">
             <span className="font-semibold text-primary">Click to upload</span> or drag and drop
           </p>
-          <p className="text-xs text-muted-foreground">XLSX or XLS (MAX. 5MB)</p>
+          <p className="text-xs text-muted-foreground">XLSX or XLS (MAX. {MAX_FILE_SIZE_MB}MB)</p>
         </>
       )}
     </div>

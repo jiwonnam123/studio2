@@ -4,7 +4,7 @@ export interface UploadedFile {
   name: string;
   size: number;
   type: string;
-  status: 'idle' | 'uploading' | 'success' | 'error';
+  status: 'idle' | 'success' | 'error'; // Removed 'uploading' as it's too brief
   errorMessage?: string;
 }
 
@@ -12,9 +12,9 @@ export interface UploadedFile {
 export interface WorkerParseResponse {
   success: boolean; // Overall success (headers valid, data exists, no critical errors)
   error: string | null;
-  previewData: string[][] | null;   // For UI: headers + limited data rows (first N rows, 6 columns)
+  previewData: string[][] | null;   // For UI: headers + limited data rows
   fullData: string[][] | null;      // For submission: all data rows (6 columns, no headers)
-  totalDataRows: number;            // Total number of data rows found (excluding header, from fullData)
+  totalDataRows: number;            // Total number of data rows found (excluding header)
   headersValid: boolean;
   dataExistsInSheet: boolean;       // Based on totalDataRows > 0
   fileSize: number;
@@ -30,8 +30,9 @@ export interface ExcelValidationResult {
   previewData?: string[][] | null;
   fullData?: string[][] | null;
   totalDataRows?: number;
+  headersValid?: boolean; // Added from worker response
+  // Performance related
   fileSize?: number;
   processingTime?: number;
   isLargeFile?: boolean;
-  headersValid?: boolean;
 }
