@@ -4,10 +4,9 @@
 import React, { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
-// import Image from 'next/image'; // No longer using next/image for logo here
+import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
-import { AdpopcornLogoIcon } from '@/components/icons/AdpopcornLogoIcon';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -40,8 +39,13 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
        <div className="absolute top-8 left-8">
         <Link href="/" className="flex items-center gap-2 text-xl font-semibold text-foreground">
-          {/* Replace Image with SVG component */}
-          <AdpopcornLogoIcon width="150" height="24" className="text-foreground" />
+          <Image
+            src="/adpopcorn-logo.svg"
+            alt="Adpopcorn Logo"
+            width={400}
+            height={60}
+            priority 
+          />
         </Link>
       </div>
       <div className="w-full max-w-md">
