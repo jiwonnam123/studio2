@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, ListChecks, MoreHorizontal, Edit, CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { PlusCircle, ListChecks, MoreHorizontal, CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { SubmittedInquiry, SubmittedInquiryDataRow } from '@/types';
 import { format } from 'date-fns';
@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { InquiryModal } from '@/components/modals/inquiry/InquiryModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { firestore } from '@/lib/firebase';
-import { collection, query, where, orderBy, onSnapshot, Timestamp, doc, updateDoc, writeBatch, getDoc, DocumentData } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, Timestamp, doc, updateDoc, writeBatch, getDoc, type DocumentData } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,9 +27,6 @@ interface FlattenedDataRow extends SubmittedInquiryDataRow {
   key: string; // Unique key for React list
   originalInquiryId: string;
   originalInquirySubmittedAt: string;
-  originalInquiryUserId?: string;
-  originalInquirySource?: 'excel' | 'direct';
-  originalInquiryFileName?: string;
   originalDataRowIndex: number; // Index within the original inquiry's data array
 }
 
@@ -114,7 +111,7 @@ export default function DashboardPage() {
       setSubmittedInquiries(fetchedInquiries);
       setIsLoadingInquiries(false);
       setCurrentPage(1); 
-      setSelectedRows(new Map()); // Reset selection on new data
+      setSelectedRows(new Map());
     }, (error) => {
       console.error("[Dashboard] Error fetching inquiries: ", error);
       toast({ title: "Error", description: "Could not fetch submitted inquiries.", variant: "destructive" });
@@ -134,9 +131,6 @@ export default function DashboardPage() {
         key: `${inquiry.id}-row-${dataRowIndex}`,
         originalInquiryId: inquiry.id,
         originalInquirySubmittedAt: inquiry.submittedAt,
-        originalInquiryUserId: inquiry.userId,
-        originalInquirySource: inquiry.source,
-        originalInquiryFileName: inquiry.fileName,
         originalDataRowIndex: dataRowIndex,
       }))
     );
@@ -412,24 +406,38 @@ export default function DashboardPage() {
             <Card className="shadow-lg">
               <Table>
                 <TableHeader>
-                  <TableRow>{
-                    isAdmin ? (<TableHead className="w-[30px] px-1 py-2 text-center"><Checkbox checked={isAllOnPageSelected || (isSomeOnPageSelected ? "indeterminate" : false)} onCheckedChange={handleSelectAllOnPage} aria-label="Select all items on this page"/></TableHead>) : null
-                  }<TableHead className="w-[120px] py-2">Submitted</TableHead><TableHead className="min-w-[120px] max-w-[150px] py-2">Campaign Key</TableHead><TableHead className="min-w-[150px] max-w-[200px] py-2">Campaign Name</TableHead><TableHead className="min-w-[120px] max-w-[150px] py-2">ADID/IDFA</TableHead><TableHead className="w-[120px] py-2">User Name</TableHead><TableHead className="w-[130px] py-2">Contact</TableHead><TableHead className="flex-1 min-w-[180px] py-2">Remarks</TableHead><TableHead className="w-[130px] py-2 text-center">Status</TableHead>{
-                    isAdmin ? (<TableHead className="w-[70px] py-2 text-center">Edit</TableHead>) : null
-                  }</TableRow>
+                  <TableRow>
+                    {isAdmin ? <TableHead className="w-[30px] px-1 py-2 text-center"><Checkbox checked={isAllOnPageSelected || (isSomeOnPageSelected ? "indeterminate" : false)} onCheckedChange={handleSelectAllOnPage} aria-label="Select all items on this page"/></TableHead> : null}
+                    <TableHead className="w-[120px] py-2 px-3 text-left">Submitted</TableHead>
+                    <TableHead className="min-w-[120px] max-w-[150px] py-2 px-3 text-left">Campaign Key</TableHead>
+                    <TableHead className="min-w-[150px] max-w-[200px] py-2 px-3 text-left">Campaign Name</TableHead>
+                    <TableHead className="min-w-[120px] max-w-[150px] py-2 px-3 text-left">ADID/IDFA</TableHead>
+                    <TableHead className="w-[120px] py-2 px-3 text-left">User Name</TableHead>
+                    <TableHead className="w-[130px] py-2 px-3 text-left">Contact</TableHead>
+                    <TableHead className="flex-1 min-w-[180px] py-2 px-3 text-left">Remarks</TableHead>
+                    <TableHead className="w-[130px] py-2 px-3 text-center">Status</TableHead>
+                    {isAdmin ? <TableHead className="w-[70px] py-2 px-3 text-center">Edit</TableHead> : null}
+                  </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedDataRows.map((row) => (
-                    <TableRow key={row.key} className="text-xs hover:bg-muted/50" data-state={selectedRows.has(row.key) ? "selected" : ""}>{
-                       isAdmin ? (
+                    <TableRow key={row.key} className="text-xs hover:bg-muted/50" data-state={selectedRows.has(row.key) ? "selected" : ""}>
+                      {isAdmin ? (
                         <TableCell className="px-1 py-1 text-center">
                            <Checkbox checked={selectedRows.has(row.key)} onCheckedChange={(checked) => handleRowSelectionChange(row, checked)} aria-labelledby={`label-select-row-${row.key}`}/>
                            <span id={`label-select-row-${row.key}`} className="sr-only">Select row for campaign key {row.campaignKey}</span>
                         </TableCell>
-                      ) : null
-                      }<TableCell className="font-medium py-2">{row.originalInquirySubmittedAt ? format(new Date(row.originalInquirySubmittedAt), "yyyy-MM-dd") : 'N/A'}</TableCell><TableCell className="py-2 truncate max-w-[150px]">{row.campaignKey}</TableCell><TableCell className="py-2 truncate max-w-[200px]">{row.campaignName}</TableCell><TableCell className="py-2 truncate max-w-[150px]">{row.adidOrIdfa}</TableCell><TableCell className="py-2 truncate max-w-[120px]">{row.userName}</TableCell><TableCell className="py-2 truncate max-w-[130px]">{row.contact}</TableCell><TableCell className="py-2 whitespace-normal break-words">{row.remarks}</TableCell><TableCell className="py-2 text-center">{renderStatusBadge(row.status)}</TableCell>{
-                      isAdmin ? (
-                        <TableCell className="py-2 text-center">
+                      ) : null}
+                      <TableCell className="font-medium py-2 px-3 text-left">{row.originalInquirySubmittedAt ? format(new Date(row.originalInquirySubmittedAt), "yyyy-MM-dd") : 'N/A'}</TableCell>
+                      <TableCell className="py-2 px-3 text-left truncate max-w-[150px]">{row.campaignKey}</TableCell>
+                      <TableCell className="py-2 px-3 text-left truncate max-w-[200px]">{row.campaignName}</TableCell>
+                      <TableCell className="py-2 px-3 text-left truncate max-w-[150px]">{row.adidOrIdfa}</TableCell>
+                      <TableCell className="py-2 px-3 text-left truncate max-w-[120px]">{row.userName}</TableCell>
+                      <TableCell className="py-2 px-3 text-left truncate max-w-[130px]">{row.contact}</TableCell>
+                      <TableCell className="py-2 px-3 text-left whitespace-normal break-words">{row.remarks}</TableCell>
+                      <TableCell className="py-2 px-3 text-center">{renderStatusBadge(row.status)}</TableCell>
+                      {isAdmin ? (
+                        <TableCell className="py-2 px-3 text-center">
                           <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="icon" className="h-7 w-7">
@@ -453,8 +461,8 @@ export default function DashboardPage() {
                               </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
-                      ) : null
-                    }</TableRow>
+                      ) : null}
+                    </TableRow>
                   ))}
                 </TableBody>
               </Table>
