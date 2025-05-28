@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ExcelUploadTab } from './ExcelUploadTab';
 import { DirectEntryTab } from './DirectEntryTab';
-import type { UploadedFile } from '@/types/inquiry';
+import type { UploadedFile, ExcelValidationResult } from '@/types/inquiry';
 import { toast } from '@/hooks/use-toast';
 import { Loader2 } from 'lucide-react';
 
@@ -29,10 +29,18 @@ type ActiveTab = 'excel' | 'direct';
 export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
   const [activeTab, setActiveTab] = useState<ActiveTab>('excel');
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
+  const [excelValidationState, setExcelValidationState] = useState<ExcelValidationResult | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleFileAccepted = (file: UploadedFile | null) => {
+  const handleFileChange = (file: UploadedFile | null) => {
     setUploadedFile(file);
+    if (!file || file.status !== 'success') {
+      setExcelValidationState(null); // Reset validation if file is removed or not successful
+    }
+  };
+
+  const handleExcelValidationComplete = (result: ExcelValidationResult) => {
+    setExcelValidationState(result);
   };
 
   const handleSubmitInquiry = async () => {
@@ -41,26 +49,24 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
     await new Promise(resolve => setTimeout(resolve, 1500));
 
     if (activeTab === 'excel') {
-      if (uploadedFile && uploadedFile.status === 'success') {
-        // Here, you might want to add a check if parsing was also successful from ExcelUploadTab
-        // For now, relies on FileUploadZone's 'success' status which means it's ready for parsing
+      if (uploadedFile && uploadedFile.status === 'success' && excelValidationState && excelValidationState.error === null && excelValidationState.hasData) {
         console.log('Submitting Excel file:', uploadedFile.name);
         toast({
           title: "Inquiry Submitted (Excel)",
           description: `File "${uploadedFile.name}" has been submitted.`,
         });
-      } else if (uploadedFile && uploadedFile.status === 'error') {
-         toast({
-          title: "Submission Error",
-          description: uploadedFile.errorMessage || "Cannot submit file with errors.",
-          variant: "destructive",
-        });
-        setIsSubmitting(false);
-        return;
       } else {
+        let description = "Please upload a valid Excel file with data.";
+        if (uploadedFile && uploadedFile.status === 'error') {
+          description = uploadedFile.errorMessage || "Cannot submit file with errors.";
+        } else if (excelValidationState && excelValidationState.error) {
+          description = excelValidationState.error;
+        } else if (excelValidationState && !excelValidationState.hasData) {
+          description = "The Excel file is valid but contains no data rows to submit.";
+        }
         toast({
-          title: "No File or File Not Ready",
-          description: "Please upload and ensure your Excel file is processed and valid before submitting.",
+          title: "Submission Error",
+          description,
           variant: "destructive",
         });
         setIsSubmitting(false);
@@ -77,16 +83,24 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
     
     setIsSubmitting(false);
     setUploadedFile(null); 
+    setExcelValidationState(null);
     onOpenChange(false); 
   };
   
   const handleModalClose = (isOpen: boolean) => {
     if (!isOpen) {
        setUploadedFile(null); 
+       setExcelValidationState(null);
        setActiveTab('excel'); 
-       // Also reset parsing state in ExcelUploadTab if it's exposed or managed here
     }
     onOpenChange(isOpen);
+  };
+
+  const isExcelSubmitDisabled = () => {
+    if (activeTab !== 'excel') return false;
+    if (!uploadedFile || uploadedFile.status !== 'success') return true;
+    if (!excelValidationState || excelValidationState.error !== null || !excelValidationState.hasData) return true;
+    return false;
   };
 
   return (
@@ -109,7 +123,8 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
             <TabsContent value="excel" className="mt-0">
               <ExcelUploadTab 
                 uploadedFileState={uploadedFile} 
-                onFileAccepted={handleFileAccepted} // This prop name was mismatched in ExcelUploadTab, correcting ExcelUploadTab to expect `uploadedFileState`
+                onFileChange={handleFileChange}
+                onValidationComplete={handleExcelValidationComplete}
               />
             </TabsContent>
             <TabsContent value="direct" className="mt-0">
@@ -122,7 +137,12 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
           <Button 
             onClick={handleSubmitInquiry} 
             className="w-full sm:w-auto" 
-            disabled={isSubmitting || (activeTab === 'excel' && (!uploadedFile || uploadedFile.status !== 'success'))}
+            disabled={
+              isSubmitting ||
+              (activeTab === 'excel' && isExcelSubmitDisabled())
+              // Add similar logic for direct entry if needed:
+              // || (activeTab === 'direct' && isDirectEntrySubmitDisabled()) 
+            }
           >
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Submit Inquiry
