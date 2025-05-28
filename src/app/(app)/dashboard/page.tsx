@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { PlusCircle, Eye, Trash2, ListChecks, MoreHorizontal, Edit, CheckCircle, XCircle, Clock, Loader2 } from 'lucide-react';
+import { PlusCircle, Eye, Trash2, ListChecks, MoreHorizontal, Edit, CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import type { SubmittedInquiry, SubmittedInquiryDataRow } from '@/types';
 import { format } from 'date-fns';
@@ -22,15 +22,14 @@ import { Badge } from '@/components/ui/badge';
 import { InquiryModal } from '@/components/modals/inquiry/InquiryModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { firestore } from '@/lib/firebase';
-import { collection, query, where, orderBy, onSnapshot, Timestamp, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, query, where, orderBy, onSnapshot, Timestamp, doc, updateDoc } from 'firebase/firestore';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from '@/components/ui/table';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 
 const ADMIN_EMAIL = 'jirrral@gmail.com';
 const STATUS_OPTIONS = ["Pending", "In Progress", "On Hold", "Resolved", "Closed", "Requires Info"];
+const ITEMS_PER_PAGE = 20;
 
 interface FlattenedDataRow extends SubmittedInquiryDataRow {
   key: string;
@@ -49,6 +48,7 @@ export default function DashboardPage() {
   const [isLoadingInquiries, setIsLoadingInquiries] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [isInquiryModalOpen, setIsInquiryModalOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const isAdmin = useMemo(() => user?.email === ADMIN_EMAIL, [user?.email]);
 
@@ -117,6 +117,7 @@ export default function DashboardPage() {
       });
       setSubmittedInquiries(fetchedInquiries);
       setIsLoadingInquiries(false);
+      setCurrentPage(1); // Reset to first page on new data load
     }, (error) => {
       console.error("[Dashboard] Error fetching inquiries: ", error);
       toast({ title: "Error", description: "Could not fetch submitted inquiries.", variant: "destructive" });
@@ -144,6 +145,24 @@ export default function DashboardPage() {
     );
   }, [submittedInquiries]);
 
+  const totalItems = flattenedDataRows.length;
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+
+  const paginatedDataRows = useMemo(() => {
+    if (totalItems === 0) return [];
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    return flattenedDataRows.slice(startIndex, endIndex);
+  }, [flattenedDataRows, currentPage, totalItems]);
+
+  useEffect(() => {
+    if (totalPages > 0 && currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    } else if (totalPages === 0 && totalItems === 0 && currentPage !== 1) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage, totalItems]);
+
   const handleStatusChange = async (inquiryId: string, dataRowIndex: number, newStatus: string) => {
     if (!isAdmin) {
         toast({ title: "Unauthorized", description: "Only admins can change status.", variant: "destructive" });
@@ -170,6 +189,14 @@ export default function DashboardPage() {
         toast({ title: "Error", description: "Could not update status.", variant: "destructive" });
     }
   };
+
+  const handleNextPage = () => {
+    setCurrentPage((prev) => Math.min(prev + 1, totalPages || 1));
+  };
+
+  const handlePreviousPage = () => {
+    setCurrentPage((prev) => Math.max(prev - 1, 1));
+  };
   
   if (!mounted) {
     return (
@@ -191,7 +218,7 @@ export default function DashboardPage() {
     let variant: "default" | "secondary" | "destructive" | "outline" = "outline";
     let icon = <Clock className="mr-1 h-3 w-3" />;
 
-    switch (status.toLowerCase()) {
+    switch (status?.toLowerCase()) { // Added null check for status
       case "pending":
         variant = "outline";
         icon = <Clock className="mr-1 h-3 w-3 text-yellow-500" />;
@@ -217,7 +244,7 @@ export default function DashboardPage() {
         variant = "secondary"; 
         icon = <ListChecks className="mr-1 h-3 w-3 text-muted-foreground" />
     }
-    return <Badge variant={variant} className="capitalize text-xs py-0.5 px-1.5 flex items-center w-fit">{icon} {status}</Badge>;
+    return <Badge variant={variant} className="capitalize text-xs py-0.5 px-1.5 flex items-center w-fit">{icon} {status || 'N/A'}</Badge>;
   };
 
 
@@ -265,83 +292,108 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         ) : (
-          <Card>
-            <Table>
-              <TableCaption>A list of your submitted inquiries.</TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[10%]">Submitted Date</TableHead>
-                  {isAdmin && <TableHead className="w-[10%] text-xs">User ID</TableHead>}
-                  {isAdmin && <TableHead className="w-[8%] text-xs">Source</TableHead>}
-                  {isAdmin && <TableHead className="w-[12%] text-xs">File Name / Details</TableHead>}
-                  <TableHead className="w-[10%]">Campaign Key</TableHead>
-                  <TableHead className="w-[15%]">Campaign Name</TableHead>
-                  <TableHead className="w-[10%]">ADID/IDFA</TableHead>
-                  <TableHead className="w-[8%]">User Name</TableHead>
-                  <TableHead className="w-[10%]">Contact</TableHead>
-                  <TableHead className="w-[12%]">Remarks</TableHead>
-                  <TableHead className="w-[10%] text-center">Status</TableHead>
-                  {isAdmin && <TableHead className="w-[5%] text-xs text-center">Edit</TableHead>}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {flattenedDataRows.map((row) => (
-                  <TableRow key={row.key} className="text-xs hover:bg-muted/5">
-                    <TableCell className="font-medium py-2">
-                      {row.originalInquirySubmittedAt ? format(new Date(row.originalInquirySubmittedAt), "yyyy-MM-dd") : 'N/A'}
-                    </TableCell>
-                    {isAdmin && <TableCell className="py-2 text-xs truncate max-w-[100px]">{row.originalInquiryUserId}</TableCell>}
-                    {isAdmin && (
-                      <TableCell className="py-2">
-                        <Badge variant={row.originalInquirySource === 'excel' ? 'secondary' : 'outline'} className="capitalize text-xs">
-                          {row.originalInquirySource}
-                        </Badge>
-                      </TableCell>
-                    )}
-                    {isAdmin && (
-                        <TableCell className="py-2 text-xs truncate max-w-[150px]">
-                            {row.originalInquirySource === 'excel' && row.originalInquiryFileName ? row.originalInquiryFileName :
-                             row.originalInquirySource === 'direct' ? 'Manual Input' : 'N/A'}
-                        </TableCell>
-                    )}
-                    <TableCell className="py-2 truncate max-w-[100px]">{row.campaignKey}</TableCell>
-                    <TableCell className="py-2 truncate max-w-[120px]">{row.campaignName}</TableCell>
-                    <TableCell className="py-2 truncate max-w-[100px]">{row.adidOrIdfa}</TableCell>
-                    <TableCell className="py-2 truncate max-w-[80px]">{row.userName}</TableCell>
-                    <TableCell className="py-2 truncate max-w-[90px]">{row.contact}</TableCell>
-                    <TableCell className="py-2 truncate max-w-[100px]">{row.remarks}</TableCell>
-                    <TableCell className="py-2 text-center">{renderStatusBadge(row.status)}</TableCell>
-                    {isAdmin && (
-                      <TableCell className="py-2 text-center">
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" size="icon" className="h-6 w-6">
-                                    <Edit className="h-3 w-3" />
-                                </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                                <DropdownMenuLabel>Update Status</DropdownMenuLabel>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuRadioGroup 
-                                    value={row.status}
-                                    onValueChange={(newStatus) => handleStatusChange(row.originalInquiryId, row.originalDataRowIndex, newStatus)}
-                                >
-                                    {STATUS_OPTIONS.map(statusOption => (
-                                        <DropdownMenuRadioItem key={statusOption} value={statusOption}>
-                                            {statusOption}
-                                        </DropdownMenuRadioItem>
-                                    ))}
-                                </DropdownMenuRadioGroup>
-                                {/* TODO: Add Admin Notes UI */}
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    )}
+          <>
+            <Card>
+              <Table>
+                <TableCaption>A list of your submitted inquiries.</TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[10%]">Submitted Date</TableHead>
+                    {isAdmin && <TableHead className="w-[10%] text-xs">User ID</TableHead>}
+                    {isAdmin && <TableHead className="w-[8%] text-xs">Source</TableHead>}
+                    {isAdmin && <TableHead className="w-[12%] text-xs">File Name / Details</TableHead>}
+                    <TableHead className="w-[10%]">Campaign Key</TableHead>
+                    <TableHead className="w-[15%]">Campaign Name</TableHead>
+                    <TableHead className="w-[10%]">ADID/IDFA</TableHead>
+                    <TableHead className="w-[8%]">User Name</TableHead>
+                    <TableHead className="w-[10%]">Contact</TableHead>
+                    <TableHead className="w-[12%]">Remarks</TableHead>
+                    <TableHead className="w-[10%] text-center">Status</TableHead>
+                    {isAdmin && <TableHead className="w-[5%] text-xs text-center">Edit</TableHead>}
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
+                </TableHeader>
+                <TableBody>
+                  {paginatedDataRows.map((row) => (
+                    <TableRow key={row.key} className="text-xs hover:bg-muted/5">
+                      <TableCell className="font-medium py-2">
+                        {row.originalInquirySubmittedAt ? format(new Date(row.originalInquirySubmittedAt), "yyyy-MM-dd") : 'N/A'}
+                      </TableCell>
+                      {isAdmin && <TableCell className="py-2 text-xs truncate max-w-[100px]">{row.originalInquiryUserId}</TableCell>}
+                      {isAdmin && (
+                        <TableCell className="py-2">
+                          <Badge variant={row.originalInquirySource === 'excel' ? 'secondary' : 'outline'} className="capitalize text-xs">
+                            {row.originalInquirySource}
+                          </Badge>
+                        </TableCell>
+                      )}
+                      {isAdmin && (
+                          <TableCell className="py-2 text-xs truncate max-w-[150px]">
+                              {row.originalInquirySource === 'excel' && row.originalInquiryFileName ? row.originalInquiryFileName :
+                               row.originalInquirySource === 'direct' ? 'Manual Input' : 'N/A'}
+                          </TableCell>
+                      )}
+                      <TableCell className="py-2 truncate max-w-[100px]">{row.campaignKey}</TableCell>
+                      <TableCell className="py-2 truncate max-w-[120px]">{row.campaignName}</TableCell>
+                      <TableCell className="py-2 truncate max-w-[100px]">{row.adidOrIdfa}</TableCell>
+                      <TableCell className="py-2 truncate max-w-[80px]">{row.userName}</TableCell>
+                      <TableCell className="py-2 truncate max-w-[90px]">{row.contact}</TableCell>
+                      <TableCell className="py-2 truncate max-w-[100px]">{row.remarks}</TableCell>
+                      <TableCell className="py-2 text-center">{renderStatusBadge(row.status)}</TableCell>
+                      {isAdmin && (
+                        <TableCell className="py-2 text-center">
+                          <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-6 w-6">
+                                      <Edit className="h-3 w-3" />
+                                  </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Update Status</DropdownMenuLabel>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuRadioGroup 
+                                      value={row.status}
+                                      onValueChange={(newStatus) => handleStatusChange(row.originalInquiryId, row.originalDataRowIndex, newStatus)}
+                                  >
+                                      {STATUS_OPTIONS.map(statusOption => (
+                                          <DropdownMenuRadioItem key={statusOption} value={statusOption}>
+                                              {statusOption}
+                                          </DropdownMenuRadioItem>
+                                      ))}
+                                  </DropdownMenuRadioGroup>
+                                  {/* TODO: Add Admin Notes UI */}
+                              </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Card>
+            {totalItems > 0 && (
+              <div className="flex items-center justify-end space-x-2 py-4 mt-4 border-t pt-4">
+                <span className="text-sm text-muted-foreground">
+                  Page {totalPages > 0 ? currentPage : 0} of {totalPages > 0 ? totalPages : 0}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePreviousPage}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages || totalItems === 0}
+                >
+                  Next <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </section>
 
