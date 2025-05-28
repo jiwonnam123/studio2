@@ -32,6 +32,16 @@ import { Textarea } from '@/components/ui/textarea';
 const ADMIN_EMAIL = 'jirrral@gmail.com';
 const STATUS_OPTIONS = ["Pending", "In Progress", "On Hold", "Resolved", "Closed", "Requires Info"];
 
+interface FlattenedDataRow extends SubmittedInquiryDataRow {
+  key: string;
+  originalInquiryId: string;
+  originalInquirySubmittedAt: string;
+  originalInquiryUserId?: string;
+  originalInquirySource?: 'excel' | 'direct';
+  originalInquiryFileName?: string;
+  originalDataRowIndex: number;
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -118,6 +128,21 @@ export default function DashboardPage() {
       unsubscribe();
     };
   }, [user?.id, isAdmin, toast]); 
+
+  const flattenedDataRows: FlattenedDataRow[] = useMemo(() => {
+    return submittedInquiries.flatMap((inquiry) =>
+      (Array.isArray(inquiry.data) ? inquiry.data : []).map((dataRow, dataRowIndex) => ({
+        ...dataRow,
+        key: `${inquiry.id}-row-${dataRowIndex}`,
+        originalInquiryId: inquiry.id,
+        originalInquirySubmittedAt: inquiry.submittedAt,
+        originalInquiryUserId: inquiry.userId,
+        originalInquirySource: inquiry.source,
+        originalInquiryFileName: inquiry.fileName,
+        originalDataRowIndex: dataRowIndex,
+      }))
+    );
+  }, [submittedInquiries]);
 
   const handleStatusChange = async (inquiryId: string, dataRowIndex: number, newStatus: string) => {
     if (!isAdmin) {
@@ -225,7 +250,7 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
-        ) : submittedInquiries.length === 0 ? (
+        ) : flattenedDataRows.length === 0 ? (
           <Card>
             <CardHeader>
                 <CardTitle>No Inquiries Submitted Yet</CardTitle>
@@ -245,114 +270,74 @@ export default function DashboardPage() {
               <TableCaption>A list of your submitted inquiries.</TableCaption>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Submitted Date</TableHead>
-                  {isAdmin && <TableHead>User ID</TableHead>}
-                  {isAdmin && <TableHead>Source</TableHead>}
-                  <TableHead>File Name / Details</TableHead>
-                  <TableHead>Entries</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead className="w-[10%]">Submitted Date</TableHead>
+                  {isAdmin && <TableHead className="w-[10%] text-xs">User ID</TableHead>}
+                  {isAdmin && <TableHead className="w-[8%] text-xs">Source</TableHead>}
+                  {isAdmin && <TableHead className="w-[12%] text-xs">File Name / Details</TableHead>}
+                  <TableHead className="w-[10%]">Campaign Key</TableHead>
+                  <TableHead className="w-[15%]">Campaign Name</TableHead>
+                  <TableHead className="w-[10%]">ADID/IDFA</TableHead>
+                  <TableHead className="w-[8%]">User Name</TableHead>
+                  <TableHead className="w-[10%]">Contact</TableHead>
+                  <TableHead className="w-[12%]">Remarks</TableHead>
+                  <TableHead className="w-[10%] text-center">Status</TableHead>
+                  {isAdmin && <TableHead className="w-[5%] text-xs text-center">Edit</TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {submittedInquiries.map((inquiry) => (
-                  <React.Fragment key={inquiry.id}>
-                    <TableRow className="bg-muted/10 hover:bg-muted/20">
-                      <TableCell className="font-medium">
-                        {inquiry.submittedAt ? format(new Date(inquiry.submittedAt), "yyyy-MM-dd HH:mm") : 'N/A'}
+                {flattenedDataRows.map((row) => (
+                  <TableRow key={row.key} className="text-xs hover:bg-muted/5">
+                    <TableCell className="font-medium py-2">
+                      {row.originalInquirySubmittedAt ? format(new Date(row.originalInquirySubmittedAt), "yyyy-MM-dd") : 'N/A'}
+                    </TableCell>
+                    {isAdmin && <TableCell className="py-2 text-xs truncate max-w-[100px]">{row.originalInquiryUserId}</TableCell>}
+                    {isAdmin && (
+                      <TableCell className="py-2">
+                        <Badge variant={row.originalInquirySource === 'excel' ? 'secondary' : 'outline'} className="capitalize text-xs">
+                          {row.originalInquirySource}
+                        </Badge>
                       </TableCell>
-                      {isAdmin && <TableCell className="text-xs truncate max-w-[100px]">{inquiry.userId}</TableCell>}
-                      {isAdmin && (
-                        <TableCell>
-                          <Badge variant={inquiry.source === 'excel' ? 'secondary' : 'outline'} className="capitalize">
-                            {inquiry.source}
-                          </Badge>
+                    )}
+                    {isAdmin && (
+                        <TableCell className="py-2 text-xs truncate max-w-[150px]">
+                            {row.originalInquirySource === 'excel' && row.originalInquiryFileName ? row.originalInquiryFileName :
+                             row.originalInquirySource === 'direct' ? 'Manual Input' : 'N/A'}
                         </TableCell>
-                      )}
-                      <TableCell className="max-w-[150px] truncate">
-                          {inquiry.source === 'excel' && inquiry.fileName ? inquiry.fileName :
-                           inquiry.source === 'direct' ? 'Manual Input' : 'N/A'}
-                      </TableCell>
-                      <TableCell>{Array.isArray(inquiry.data) ? inquiry.data.length : 0}</TableCell>
-                      <TableCell className="text-right">
-                         <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreHorizontal className="h-4 w-4" />
-                              <span className="sr-only">Actions</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem disabled>
-                              <Eye className="mr-2 h-4 w-4" /> View Full Inquiry
-                            </DropdownMenuItem>
-                             <DropdownMenuItem disabled className="text-destructive hover:!bg-destructive hover:!text-destructive-foreground focus:!bg-destructive focus:!text-destructive-foreground">
-                              <Trash2 className="mr-2 h-4 w-4" /> Delete Inquiry
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
+                    )}
+                    <TableCell className="py-2 truncate max-w-[100px]">{row.campaignKey}</TableCell>
+                    <TableCell className="py-2 truncate max-w-[120px]">{row.campaignName}</TableCell>
+                    <TableCell className="py-2 truncate max-w-[100px]">{row.adidOrIdfa}</TableCell>
+                    <TableCell className="py-2 truncate max-w-[80px]">{row.userName}</TableCell>
+                    <TableCell className="py-2 truncate max-w-[90px]">{row.contact}</TableCell>
+                    <TableCell className="py-2 truncate max-w-[100px]">{row.remarks}</TableCell>
+                    <TableCell className="py-2 text-center">{renderStatusBadge(row.status)}</TableCell>
+                    {isAdmin && (
+                      <TableCell className="py-2 text-center">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-6 w-6">
+                                    <Edit className="h-3 w-3" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                                <DropdownMenuLabel>Update Status</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuRadioGroup 
+                                    value={row.status}
+                                    onValueChange={(newStatus) => handleStatusChange(row.originalInquiryId, row.originalDataRowIndex, newStatus)}
+                                >
+                                    {STATUS_OPTIONS.map(statusOption => (
+                                        <DropdownMenuRadioItem key={statusOption} value={statusOption}>
+                                            {statusOption}
+                                        </DropdownMenuRadioItem>
+                                    ))}
+                                </DropdownMenuRadioGroup>
+                                {/* TODO: Add Admin Notes UI */}
+                            </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
-                    </TableRow>
-                    {/* Data Rows for this inquiry */}
-                    <TableRow>
-                      <TableCell colSpan={isAdmin ? 6 : 5} className="p-0">
-                        <div className="px-2 py-1 bg-background">
-                           <Table>
-                            <TableHeader className="bg-muted/30">
-                                <TableRow>
-                                    <TableHead className="w-[15%] text-xs h-8">Campaign Key</TableHead>
-                                    <TableHead className="w-[20%] text-xs h-8">Campaign Name</TableHead>
-                                    <TableHead className="w-[15%] text-xs h-8">ADID/IDFA</TableHead>
-                                    <TableHead className="w-[12%] text-xs h-8">User Name</TableHead>
-                                    <TableHead className="w-[13%] text-xs h-8">Contact</TableHead>
-                                    <TableHead className="w-[15%] text-xs h-8">Remarks</TableHead>
-                                    <TableHead className="w-[10%] text-xs h-8 text-center">Status</TableHead>
-                                    {isAdmin && <TableHead className="w-[5%] text-xs h-8 text-center">Edit</TableHead>}
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {Array.isArray(inquiry.data) && inquiry.data.map((row, rowIndex) => (
-                                    <TableRow key={`${inquiry.id}-row-${rowIndex}`} className="text-xs hover:bg-muted/5">
-                                        <TableCell className="py-1.5 truncate max-w-[100px]">{row.campaignKey}</TableCell>
-                                        <TableCell className="py-1.5 truncate max-w-[120px]">{row.campaignName}</TableCell>
-                                        <TableCell className="py-1.5 truncate max-w-[100px]">{row.adidOrIdfa}</TableCell>
-                                        <TableCell className="py-1.5 truncate max-w-[80px]">{row.userName}</TableCell>
-                                        <TableCell className="py-1.5 truncate max-w-[90px]">{row.contact}</TableCell>
-                                        <TableCell className="py-1.5 truncate max-w-[100px]">{row.remarks}</TableCell>
-                                        <TableCell className="py-1.5 text-center">{renderStatusBadge(row.status)}</TableCell>
-                                        {isAdmin && (
-                                          <TableCell className="py-1.5 text-center">
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6">
-                                                        <Edit className="h-3 w-3" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuLabel>Update Status</DropdownMenuLabel>
-                                                    <DropdownMenuSeparator />
-                                                    <DropdownMenuRadioGroup 
-                                                        value={row.status}
-                                                        onValueChange={(newStatus) => handleStatusChange(inquiry.id, rowIndex, newStatus)}
-                                                    >
-                                                        {STATUS_OPTIONS.map(statusOption => (
-                                                            <DropdownMenuRadioItem key={statusOption} value={statusOption}>
-                                                                {statusOption}
-                                                            </DropdownMenuRadioItem>
-                                                        ))}
-                                                    </DropdownMenuRadioGroup>
-                                                    {/* TODO: Add Admin Notes UI */}
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                          </TableCell>
-                                        )}
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                           </Table>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  </React.Fragment>
+                    )}
+                  </TableRow>
                 ))}
               </TableBody>
             </Table>
@@ -364,4 +349,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
