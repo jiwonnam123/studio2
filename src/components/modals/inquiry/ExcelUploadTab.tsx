@@ -21,10 +21,12 @@ export function ExcelUploadTab({ onFileAccepted }: ExcelUploadTabProps) {
   return (
     <div className="space-y-6 py-2">
       <div>
-        <Button variant="outline" onClick={handleDownloadTemplate} className="w-full sm:w-auto">
-          <Download className="mr-2 h-4 w-4" />
-          Download Excel Template
-        </Button>
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={handleDownloadTemplate} className="w-full sm:w-auto">
+            <Download className="mr-2 h-4 w-4" />
+            Download Excel Template
+          </Button>
+        </div>
         <p className="text-xs text-muted-foreground mt-1">
           Download the template to ensure your data is in the correct format for upload.
         </p>

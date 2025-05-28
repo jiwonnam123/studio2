@@ -66,7 +66,7 @@ export function FileUploadZone({ onFileAccepted }: FileUploadZoneProps) {
     }
   }, [onFileAccepted]);
 
-  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     multiple: false,
     accept: {
@@ -124,9 +124,7 @@ export function FileUploadZone({ onFileAccepted }: FileUploadZoneProps) {
           </>
         )}
       </div>
-      <Button type="button" variant="outline" onClick={open} className="w-full sm:w-auto">
-        Select File
-      </Button>
+      {/* "Select File" button has been removed as requested */}
 
       {uploadedFile && (
         <div className="p-4 border rounded-lg bg-muted/30">
