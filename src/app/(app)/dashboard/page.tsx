@@ -13,13 +13,13 @@ import { InquiryModal } from '@/components/modals/inquiry/InquiryModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { firestore } from '@/lib/firebase';
 import { collection, query, where, orderBy, onSnapshot, Timestamp, doc, updateDoc, writeBatch, getDoc, type DocumentData, limit, startAfter, getDocs, endBefore, limitToLast } from 'firebase/firestore';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from '@/components/ui/table';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuLabel } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-const ADMIN_EMAIL = 'jirrral@gmail.com'; // 실제 관리자 이메일로 변경하세요.
+const ADMIN_EMAIL = 'jirrral@gmail.com';
 const STATUS_OPTIONS_KOREAN = ["처리 전", "처리 중", "보류 중", "처리 완료", "종료됨", "정보 필요"];
 const ITEMS_PER_PAGE = 20;
 
@@ -42,10 +42,6 @@ export default function DashboardPage() {
   const [isInquiryModalOpen, setIsInquiryModalOpen] = useState(false);
   
   const [currentPage, setCurrentPage] = useState(1);
-  const [lastVisibleDoc, setLastVisibleDoc] = useState<DocumentData | null>(null);
-  const [firstVisibleDoc, setFirstVisibleDoc] = useState<DocumentData | null>(null);
-  const [isLastPage, setIsLastPage] = useState(false);
-  const [pageDocSnapshots, setPageDocSnapshots] = useState<(DocumentData | null)[]>([null]); // Store first doc of each page
 
   const [selectedRows, setSelectedRows] = useState<Map<string, FlattenedDataRow>>(new Map());
   const [bulkStatus, setBulkStatus] = useState<string>('');
@@ -57,7 +53,7 @@ export default function DashboardPage() {
     setMounted(true);
   }, []);
   
-  const fetchInquiries = useCallback(async (page: number, direction: 'next' | 'prev' | 'current' = 'current') => {
+  const fetchInquiries = useCallback(async () => {
     if (!user?.id) {
       setSubmittedInquiries([]);
       setIsLoadingInquiries(false);
@@ -72,71 +68,12 @@ export default function DashboardPage() {
       ? []
       : [where("userId", "==", user.id)];
 
-    if (direction === 'next' && lastVisibleDoc) {
-      q = query(
-        inquiriesRef,
-        ...baseQueryConstraints,
-        orderBy("submittedAt", "desc"),
-        startAfter(lastVisibleDoc),
-        limit(ITEMS_PER_PAGE)
-      );
-    } else if (direction === 'prev' && firstVisibleDoc && page > 1 && pageDocSnapshots[page -1]) {
-       // For 'prev', we might need a more complex query or client-side caching.
-       // A simpler approach for 'prev' with onSnapshot is harder.
-       // For now, going to a specific page when going back is harder with dynamic snapshots.
-       // We'll aim for a "load previous set" if possible, or reset to first page.
-       // This example simplifies: it fetches from the start up to the new page's first doc.
-       // This is not optimal for `onSnapshot` with `endBefore`.
-       // For true pagination with `onSnapshot`, consider managing arrays of listeners or using `getDocs` for page turns.
-       // Resetting to first page for simplicity on "prev" if `onSnapshot` is strictly used for real-time.
-       // Let's use getDocs for pagination for more control.
-       
-       // If we stick to onSnapshot, a simpler "prev" might be to re-fetch from the start.
-       // For robust pagination with onSnapshot, it's very complex.
-       // Let's switch to getDocs for pagination to simplify prev/next logic.
-       // For now, this onSnapshot example will only effectively support 'next' or 'current' (initial load).
-       // To implement 'prev' correctly with cursors, you'd need to query in reverse order with `orderBy("submittedAt", "asc")`
-       // and use `endBefore` then reverse the results, or store all doc snapshots.
-
-       // Simplified: re-fetch from start if 'prev' is complex with onSnapshot
-       // For now, let's demonstrate the initial load and next page with onSnapshot.
-       // A full pagination with onSnapshot requires careful state management of cursors for each page.
-       // For simplicity, we'll use getDocs for page turns if full pagination is needed.
-       // The current `onSnapshot` will just listen to the first page or next additions.
-       //
-       // Let's assume for now `onSnapshot` is for the *first page* or *initial load*
-       // and page changes will use `getDocs`. Or, simplify onSnapshot to just the current view.
-       
-       // For this example, we'll make `onSnapshot` listen to the current page's range
-       // This is not typical for `onSnapshot` based pagination.
-       // A more common pattern is `onSnapshot` for the first page, and `getDocs` for subsequent pages.
-
-      // Let's re-evaluate: onSnapshot is for real-time updates. For pagination,
-      // it's better to fetch pages with getDocs.
-      // The original code used onSnapshot for the whole filtered list.
-      // We'll stick to that for now and do client-side pagination for simplicity,
-      // acknowledging its scalability limits for large datasets.
-      
-      // Restoring original onSnapshot logic for all user/admin data, then paginating client-side
-      q = query(
-        inquiriesRef,
-        ...baseQueryConstraints,
-        orderBy("submittedAt", "desc")
-        // We won't apply server-side limit here if we paginate client-side from full list
-      );
-
-    } else { // Initial load or current page refresh
-       q = query(
-        inquiriesRef,
-        ...baseQueryConstraints,
-        orderBy("submittedAt", "desc")
-        // limit(ITEMS_PER_PAGE) // Only if server-side paginating the first page with onSnapshot
-      );
-    }
+    q = query(
+      inquiriesRef,
+      ...baseQueryConstraints,
+      orderBy("submittedAt", "desc")
+    );
     
-    // This onSnapshot will fetch ALL documents matching the base query.
-    // Client-side pagination will be applied later via useMemo.
-    // This is what the original code was essentially doing before pagination was introduced.
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const fetchedInquiries = querySnapshot.docs.map(docSnapshot => {
         const data = docSnapshot.data() as DocumentData;
@@ -169,35 +106,32 @@ export default function DashboardPage() {
           fileName: data.fileName,
           data: processedDataArray,
           submittedAt: submittedAtStr,
+          status: data.status || "처리 전", 
+          adminNotes: data.adminNotes || '',
         } as SubmittedInquiry;
       });
       setSubmittedInquiries(fetchedInquiries);
       setIsLoadingInquiries(false);
-      // Resetting page to 1 on new data fetch to avoid being on an out-of-bounds page
-      // setCurrentPage(1); // This might be too aggressive if data updates frequently.
-      // Let's manage current page updates more carefully in the pagination effect.
       setSelectedRows(new Map()); 
     }, (error) => {
-      console.error("문의 내역 가져오기 오류: ", error);
+      console.error("Error fetching inquiries: ", error);
       toast({ title: "오류", description: "제출된 문의를 가져올 수 없습니다.", variant: "destructive" });
       setIsLoadingInquiries(false);
     });
 
     return unsubscribe;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, isAdmin, toast]); // Removed pagination state variables from here as onSnapshot fetches all
+  }, [user?.id, isAdmin, toast]); 
 
   useEffect(() => {
-    const unsubscribe = fetchInquiries(currentPage, 'current');
+    const unsubscribePromise = fetchInquiries();
     return () => {
-        if (typeof unsubscribe === 'function') {
-            unsubscribe();
-        } else {
-            unsubscribe.then(unsub => unsub()).catch(err => console.error("Error unsubscribing:", err));
-        }
+        unsubscribePromise.then(unsub => {
+            if (typeof unsub === 'function') {
+                unsub();
+            }
+        }).catch(err => console.error("Error unsubscribing from inquiries:", err));
     }
-  }, [fetchInquiries, currentPage]); // currentPage dependency might cause re-fetch of all data on page change.
-                                     // This is not ideal. Client-side pagination below is better with this setup.
+  }, [fetchInquiries]); 
 
   const flattenedDataRows: FlattenedDataRow[] = useMemo(() => {
     return submittedInquiries.flatMap((inquiry) =>
@@ -224,12 +158,10 @@ export default function DashboardPage() {
     return flattenedDataRows.slice(startIndex, endIndex);
   }, [flattenedDataRows, currentPage, totalItems]);
 
-  // Effect to adjust currentPage if it goes out of bounds
   useEffect(() => {
     if (totalPages > 0 && currentPage > totalPages) {
       setCurrentPage(totalPages);
     } else if (totalPages === 0 && totalItems === 0 && currentPage !== 1) {
-      // If no items and not on page 1, reset to page 1
       setCurrentPage(1);
     }
   }, [totalPages, currentPage, totalItems]);
@@ -255,7 +187,7 @@ export default function DashboardPage() {
 
         const newDataArray = [...currentInquiryData];
         if (newDataArray[dataRowIndex]) {
-            newDataArray[dataRowIndex] = { ...newDataArray[dataRowIndex], status: newStatus, adminNotes: newDataArray[dataRowIndex].adminNotes || '' }; // Ensure adminNotes exists
+            newDataArray[dataRowIndex] = { ...newDataArray[dataRowIndex], status: newStatus, adminNotes: newDataArray[dataRowIndex].adminNotes || '' };
             await updateDoc(inquiryRef, { data: newDataArray });
             toast({ title: "상태 업데이트됨", description: `상태가 ${newStatus}(으)로 변경되었습니다.` });
         } else {
@@ -309,21 +241,30 @@ export default function DashboardPage() {
     const batch = writeBatch(firestore);
     const updatesByInquiryId = new Map<string, { inquiryRef: any, updatedDataArray: SubmittedInquiryDataRow[] }>();
 
-    // This part might be slow if many rows from different documents are selected.
-    // Firestore batch writes are efficient, but fetching many documents first can be slow.
+    // Fetch all necessary documents first (optimized slightly)
+    const uniqueInquiryIds = Array.from(new Set(Array.from(selectedRows.values()).map(row => row.originalInquiryId)));
+    const docPromises = uniqueInquiryIds.map(id => getDoc(doc(firestore, "inquiries", id)));
+    const docSnapshots = await Promise.all(docPromises);
+
+    const inquiryDocsMap = new Map<string, DocumentData | null>();
+    docSnapshots.forEach((docSnap, index) => {
+        if (docSnap.exists()) {
+            inquiryDocsMap.set(uniqueInquiryIds[index], docSnap.data());
+        } else {
+            inquiryDocsMap.set(uniqueInquiryIds[index], null);
+        }
+    });
+    
     for (const row of selectedRows.values()) {
       if (!updatesByInquiryId.has(row.originalInquiryId)) {
-        const inquiryRef = doc(firestore, "inquiries", row.originalInquiryId);
-        // Optimization: Only fetch if not already fetched or if data might be stale.
-        // For simplicity, fetching each doc once.
-        const docSnap = await getDoc(inquiryRef); // This could be a performance bottleneck if many unique docs
-        if (docSnap.exists()) {
+        const inquiryData = inquiryDocsMap.get(row.originalInquiryId);
+        if (inquiryData) {
            updatesByInquiryId.set(row.originalInquiryId, {
-            inquiryRef,
-            updatedDataArray: [...(docSnap.data()?.data as SubmittedInquiryDataRow[] || [])]
+            inquiryRef: doc(firestore, "inquiries", row.originalInquiryId),
+            updatedDataArray: [...(inquiryData?.data as SubmittedInquiryDataRow[] || [])]
           });
         } else {
-          console.warn(`문서 ${row.originalInquiryId}을(를) 찾을 수 없어 행 ${row.key}의 일괄 업데이트를 건너뜁니다.`);
+          console.warn(`Document ${row.originalInquiryId} not found, skipping row ${row.key} for bulk update.`);
           continue;
         }
       }
@@ -370,7 +311,6 @@ export default function DashboardPage() {
         </div>
         <div className="animate-pulse space-y-2 mt-8">
             <Skeleton className="h-8 w-1/3 rounded" />
-            <Skeleton className="h-4 w-3/4 rounded" />
         </div>
         <Skeleton className="h-40 w-full rounded bg-muted mt-4" />
       </div>
@@ -392,20 +332,20 @@ export default function DashboardPage() {
         variant = "secondary";
         icon = <Loader2 className="mr-1 h-3 w-3 animate-spin text-blue-500" />;
         break;
+      case "보류 중":
+      case "hold":
+        variant = "outline";
+        icon = <Clock className="mr-1 h-3 w-3 text-orange-500" />; // Custom color for hold
+        break;
       case "처리 완료":
       case "resolved":
-        variant = "default";
+        variant = "default"; // Using default for green-like success
         icon = <CheckCircle className="mr-1 h-3 w-3 text-green-500" />;
         break;
       case "종료됨":
       case "closed":
         variant = "default";
         icon = <CheckCircle className="mr-1 h-3 w-3 text-green-500" />;
-        break;
-      case "보류 중":
-      case "hold":
-        variant = "outline";
-        icon = <Clock className="mr-1 h-3 w-3 text-orange-500" />;
         break;
       case "정보 필요":
       case "info needed":
@@ -429,16 +369,13 @@ export default function DashboardPage() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">문의 내역</h1>
-            <p className="text-muted-foreground">
-              제출된 문의 데이터를 확인하고 관리하세요.{isAdmin ? <Badge variant="secondary" className="ml-2">관리자 보기</Badge> : null}
-            </p>
           </div>
           <Button onClick={() => setIsInquiryModalOpen(true)}>
-            <PlusCircle className="mr-2 h-4 w-4" /> 새 문의 제출
+            <PlusCircle className="mr-2 h-4 w-4" /> 문의 제출
           </Button>
         </div>
 
-        {isAdmin ? (
+        {isAdmin && (
           <Card className="mb-6 shadow-sm border-dashed bg-muted/30">
             <CardHeader className="pb-3 pt-4">
               <CardTitle className="text-base">일괄 상태 업데이트</CardTitle>
@@ -464,11 +401,11 @@ export default function DashboardPage() {
                 className="w-full sm:w-auto"
               >
                 {isBulkUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                선택된 항목 ({selectedRows.size}개) 상태 저장
+                선택 항목 ({selectedRows.size}개) 상태 저장
               </Button>
             </CardContent>
           </Card>
-        ) : null}
+        )}
 
 
         {isLoadingInquiries ? (
@@ -488,8 +425,8 @@ export default function DashboardPage() {
         ) : flattenedDataRows.length === 0 ? (
           <Card>
             <CardHeader>
-                <CardTitle>아직 제출된 문의가 없습니다</CardTitle>
-                <CardDescription>"새 문의 제출"을 클릭하여 시작하세요.</CardDescription>
+                <CardTitle>제출된 문의가 없습니다</CardTitle>
+                <CardDescription>"문의 제출"을 클릭하여 첫 문의를 기록하세요.</CardDescription>
             </CardHeader>
             <CardContent className="text-center py-10">
               <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -515,13 +452,6 @@ export default function DashboardPage() {
                       </TableHead>
                     ) : null}
                     <TableHead className="w-[100px] py-2 px-3 text-left">제출일</TableHead>
-                    {isAdmin ? (
-                        <>
-                            <TableHead className="min-w-[120px] max-w-[150px] py-2 px-3 text-left text-xs text-muted-foreground">User ID</TableHead>
-                            <TableHead className="min-w-[80px] max-w-[100px] py-2 px-3 text-left text-xs text-muted-foreground">출처</TableHead>
-                            <TableHead className="min-w-[150px] max-w-[200px] py-2 px-3 text-left text-xs text-muted-foreground">파일명</TableHead>
-                        </>
-                    ) : null}
                     <TableHead className="min-w-[120px] max-w-[150px] py-2 px-3 text-left">캠페인 키</TableHead>
                     <TableHead className="min-w-[150px] max-w-[200px] py-2 px-3 text-left">캠페인 명</TableHead>
                     <TableHead className="min-w-[120px] max-w-[150px] py-2 px-3 text-left">ADID/IDFA</TableHead>
@@ -542,17 +472,10 @@ export default function DashboardPage() {
                             onCheckedChange={(checked) => handleRowSelectionChange(row, checked)} 
                             aria-labelledby={`label-select-row-${row.key}`}
                           />
-                          <span id={`label-select-row-${row.key}`} className="sr-only">캠페인 키 {row.campaignKey} 행 선택</span>
+                          <span id={`label-select-row-${row.key}`} className="sr-only">캠페인 키 ${row.campaignKey} 행 선택</span>
                         </TableCell>
                       ) : null}
                       <TableCell className="font-medium py-2 px-3 text-left">{row.originalInquirySubmittedAt ? format(new Date(row.originalInquirySubmittedAt), "yyyy-MM-dd") : 'N/A'}</TableCell>
-                      {isAdmin ? (
-                          <>
-                              <TableCell className="py-2 px-3 text-left text-xs text-muted-foreground truncate max-w-[150px]">{row.submitterUserId || 'N/A'}</TableCell>
-                              <TableCell className="py-2 px-3 text-left text-xs text-muted-foreground">{row.submissionSource || 'N/A'}</TableCell>
-                              <TableCell className="py-2 px-3 text-left text-xs text-muted-foreground truncate max-w-[200px]">{row.submissionFileName || (row.submissionSource === 'direct' ? '직접 입력' : 'N/A')}</TableCell>
-                          </>
-                      ) : null}
                       <TableCell className="py-2 px-3 text-left truncate max-w-[150px]">{row.campaignKey}</TableCell>
                       <TableCell className="py-2 px-3 text-left truncate max-w-[200px]">{row.campaignName}</TableCell>
                       <TableCell className="py-2 px-3 text-left truncate max-w-[150px]">{row.adidOrIdfa}</TableCell>
@@ -588,6 +511,9 @@ export default function DashboardPage() {
                     </TableRow>
                   ))}
                 </TableBody>
+                <TableCaption>
+                    {/* Removed caption text */}
+                </TableCaption>
               </Table>
             </Card>
             {totalPages > 1 && (
@@ -621,4 +547,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
