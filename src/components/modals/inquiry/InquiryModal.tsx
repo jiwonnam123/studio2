@@ -10,7 +10,7 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-  DialogClose,
+  // DialogClose, // Removed
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -113,10 +113,8 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
           </div>
         </Tabs>
         
-        <DialogFooter className="p-6 border-t bg-muted/30 flex-shrink-0 flex-col-reverse sm:flex-row gap-2 sm:gap-0">
-          <DialogClose asChild>
-            <Button variant="outline" className="w-full sm:w-auto" disabled={isSubmitting}>Cancel</Button>
-          </DialogClose>
+        <DialogFooter className="p-6 border-t bg-muted/30 flex-shrink-0 flex-col-reverse sm:flex-row sm:justify-end gap-2 sm:gap-0">
+          {/* Removed DialogClose and Cancel Button */}
           <Button onClick={handleSubmitInquiry} className="w-full sm:w-auto" disabled={isSubmitting || (activeTab === 'excel' && (!uploadedFile || uploadedFile.status !== 'success'))}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Submit Inquiry
