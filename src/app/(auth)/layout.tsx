@@ -4,9 +4,10 @@
 import React, { useEffect } from 'react';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image';
+// import Image from 'next/image'; // No longer using next/image for logo here
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
+import { AdpopcornLogoIcon } from '@/components/icons/AdpopcornLogoIcon';
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -26,8 +27,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     );
   }
 
-  // If already authenticated when this layout mounts, show a loading/redirecting message
-  // This prevents a flash of the login/register page before redirection by AppLayout or HomePage
   if (isAuthenticated) {
     return (
          <div className="flex h-screen w-screen items-center justify-center bg-background">
@@ -41,7 +40,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
        <div className="absolute top-8 left-8">
         <Link href="/" className="flex items-center gap-2 text-xl font-semibold text-foreground">
-          <Image src="https://placehold.co/150x24.png" alt="Adpopcorn Logo" width={150} height={24} data-ai-hint="Adpopcorn logo" />
+          {/* Replace Image with SVG component */}
+          <AdpopcornLogoIcon width="150" height="24" className="text-foreground" />
         </Link>
       </div>
       <div className="w-full max-w-md">
