@@ -51,7 +51,6 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
 
   useImperativeHandle(ref, () => ({
     getGridData: () => {
-      // Filter out completely empty rows before returning
       return gridData.filter(row => row.some(cell => cell.trim() !== ''));
     }
   }));
@@ -133,12 +132,10 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
   const handleDocumentMouseUp = useCallback(() => {
     if (isSelecting) {
         setIsSelecting(false);
-        if (selectionStartCell && tableRef.current) {
-            const inputEl = tableRef.current.querySelector<HTMLInputElement>(`input[data-row="${selectionStartCell.r}"][data-col="${selectionStartCell.c}"]`);
-            inputEl?.focus();
-        }
+        // After a drag selection, we generally don't want to auto-focus a specific input.
+        // If it was a simple click, the input itself will handle focus.
     }
-  }, [isSelecting, selectionStartCell]);
+  }, [isSelecting]);
   
   useEffect(() => {
     document.addEventListener('mouseup', handleDocumentMouseUp);
@@ -207,10 +204,7 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
                 setGridDataInternal(newGridData);
                 pushStateToHistory(newGridData);
             }
-            if (selectionStartCell && tableRef.current) {
-                const inputEl = tableRef.current.querySelector<HTMLInputElement>(`input[data-row="${selectionStartCell.r}"][data-col="${selectionStartCell.c}"]`);
-                inputEl?.focus();
-            }
+            // Do not auto-focus after deleting a range. User can click to focus.
             setSelectionStartCell(null);
             setSelectionEndCell(null);
         }
@@ -295,8 +289,8 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
                     <td 
                         key={`cell-${rowIndex}-${colIndex}`} 
                         className={cn(
-                          "p-0 relative", 
-                           isCellSelected(rowIndex, colIndex) && "bg-primary/20" 
+                          "p-0 relative",
+                           isCellSelected(rowIndex, colIndex) && "bg-primary/30" // Apply background to TD for selection
                         )}
                         onMouseDown={() => handleCellMouseDown(rowIndex, colIndex)}
                         onMouseEnter={() => handleCellMouseEnter(rowIndex, colIndex)}
@@ -307,12 +301,11 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
                         onChange={(e) => handleInputChange(rowIndex, colIndex, e)}
                         onPaste={(e) => handlePaste(rowIndex, colIndex, e)}
                         onFocus={(e) => {
-                            if(isSelecting) setIsSelecting(false);
+                            if(isSelecting) setIsSelecting(false); // If an input is focused, stop cell selection mode
                         }}
                         className={cn(
                             "w-full h-full px-2 py-1.5 rounded-none focus:ring-1 focus:ring-primary focus:z-30 focus:relative focus:shadow-md",
-                            "border-2", 
-                            isCellSelected(rowIndex, colIndex) ? "border-primary" : "border-transparent"
+                            "border-2 border-transparent" // Keep border transparent to avoid layout shifts
                         )}
                         aria-label={`Cell for ${customColumnHeaders[colIndex]}, row ${rowIndex + 1}`}
                         data-row={rowIndex}
@@ -331,3 +324,4 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
     </div>
   );
 });
+
