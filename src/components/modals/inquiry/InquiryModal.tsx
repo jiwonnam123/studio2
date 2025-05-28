@@ -2,7 +2,7 @@
 "use client";
 
 import type React from 'react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -34,15 +34,17 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
 
   const handleFileChange = useCallback((file: UploadedFile | null) => {
     setUploadedFile(file);
+    // If file is removed or changes, reset validation state until new validation completes
     if (!file || file.status !== 'success') {
-      if (excelValidationState !== null) {
-        setExcelValidationState(null);
+      if (excelValidationState !== null) { // Only reset if it was previously set
+         setExcelValidationState(null); // This will be re-populated by ExcelUploadTab's onValidationComplete
       }
     }
-  }, [excelValidationState]);
+  }, [excelValidationState]); // excelValidationState in dep array for the conditional reset
 
   const handleExcelValidationComplete = useCallback((result: ExcelValidationResult) => {
     setExcelValidationState(prevState => {
+      // Avoid unnecessary re-renders if the result is identical
       if (JSON.stringify(prevState) === JSON.stringify(result)) {
         return prevState;
       }
@@ -57,10 +59,10 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
 
     if (activeTab === 'excel') {
       if (uploadedFile && uploadedFile.status === 'success' && excelValidationState && excelValidationState.error === null && excelValidationState.hasData) {
-        console.log('Submitting Excel file:', uploadedFile.name);
+        console.log('Submitting Excel file:', uploadedFile.name, 'with', excelValidationState.totalDataRows, 'rows.');
         toast({
           title: "Inquiry Submitted (Excel)",
-          description: `File "${uploadedFile.name}" has been submitted.`,
+          description: `File "${uploadedFile.name}" with ${excelValidationState.totalDataRows} data rows has been submitted.`,
         });
       } else {
         let description = "Please upload a valid Excel file with data.";
@@ -81,24 +83,24 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
       }
     } else if (activeTab === 'direct') {
       // Placeholder for direct entry submission
-      // Access grid data here (needs to be lifted up or accessed via ref)
       console.log('Submitting direct entry form...');
       toast({
         title: "Inquiry Submitted (Direct)",
         description: "Your direct entry inquiry has been submitted.",
       });
     }
-    
+
     setIsSubmitting(false);
-    setUploadedFile(null); 
+    // Reset states after successful submission for next use
+    setUploadedFile(null);
     setExcelValidationState(null);
-    onOpenChange(false); 
+    onOpenChange(false);
   };
-  
+
   const handleModalOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
-       // Reset states when modal is closed
-       setUploadedFile(null); 
+       // Reset states when modal is closed, ensuring a clean state for next open
+       setUploadedFile(null);
        setExcelValidationState(null);
        // Optionally reset active tab:
        // setActiveTab('excel');
@@ -106,8 +108,17 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
     onOpenChange(isOpen);
   };
 
+  // Effect to reset states when modal is closed (if not submitted)
+  useEffect(() => {
+    if (!open) {
+      setUploadedFile(null);
+      setExcelValidationState(null);
+      // setActiveTab('excel'); // Optionally reset tab
+    }
+  }, [open]);
+
+
   const isExcelSubmitDisabled = () => {
-    if (activeTab !== 'excel') return false; 
     if (isSubmitting) return true;
     if (!uploadedFile || uploadedFile.status !== 'success') return true;
     if (!excelValidationState || excelValidationState.error !== null || !excelValidationState.hasData) return true;
@@ -115,17 +126,16 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
   };
 
   const isDirectEntrySubmitDisabled = () => {
-    if (activeTab !== 'direct') return false;
     if (isSubmitting) return true;
     // Add actual validation for direct entry if needed
-    return false; 
+    return false;
   };
 
 
   return (
     <Dialog open={open} onOpenChange={handleModalOpenChange}>
       <DialogContent className="max-w-[1000px] w-[95vw] sm:w-[90vw] md:w-[1000px] p-0 data-[state=open]:h-auto sm:h-[calc(100vh-100px)] sm:max-h-[700px] flex flex-col">
-        <DialogHeader className="p-6 pb-0 text-center sm:text-center"> 
+        <DialogHeader className="p-6 pb-0 text-center sm:text-center">
           <DialogTitle className="text-2xl">Submit Inquiry</DialogTitle>
           <DialogDescription>
             Upload an Excel file or enter details manually.
@@ -137,26 +147,26 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
             <TabsTrigger value="excel">Excel Upload</TabsTrigger>
             <TabsTrigger value="direct">Direct Entry</TabsTrigger>
           </TabsList>
-          
+
           <div className="flex-grow overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent">
             <TabsContent value="excel" className="mt-0">
-              <ExcelUploadTab 
-                uploadedFileState={uploadedFile} 
+              <ExcelUploadTab
+                uploadedFileState={uploadedFile}
                 onFileChange={handleFileChange}
                 onValidationComplete={handleExcelValidationComplete}
                 excelValidationState={excelValidationState}
               />
             </TabsContent>
-            <TabsContent value="direct" className="mt-0 h-full"> 
+            <TabsContent value="direct" className="mt-0 h-full">
               <DirectEntryTab />
             </TabsContent>
           </div>
         </Tabs>
-        
+
         <DialogFooter className="p-6 border-t bg-muted/30 flex-shrink-0">
-          <Button 
-            onClick={handleSubmitInquiry} 
-            className="w-full sm:w-auto" 
+          <Button
+            onClick={handleSubmitInquiry}
+            className="w-full sm:w-auto"
             disabled={
               isSubmitting ||
               (activeTab === 'excel' && isExcelSubmitDisabled()) ||

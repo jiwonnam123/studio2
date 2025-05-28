@@ -34,15 +34,16 @@ const customColumnHeaders = [
   "비고"
 ];
 
-const MAX_PREVIEW_ROWS = 10; 
+const MAX_PREVIEW_ROWS = 10;
 
 export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationComplete, excelValidationState }: ExcelUploadTabProps) {
   const [previewData, setPreviewData] = useState<string[][] | null>(null);
   const [isParsing, setIsParsing] = useState(false);
+  const [totalDataRowsAfterParse, setTotalDataRowsAfterParse] = useState<number>(0);
 
   const handleDownloadTemplate = () => {
     const link = document.createElement('a');
-    link.href = '/inquiry_template.xlsx'; 
+    link.href = '/inquiry_template.xlsx';
     link.setAttribute('download', 'inquiry_template.xlsx');
     document.body.appendChild(link);
     link.click();
@@ -53,7 +54,8 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
     if (isParsing) return;
     setIsParsing(true);
     setPreviewData(null);
-    let validationResult: ExcelValidationResult = { error: null, hasData: false };
+    setTotalDataRowsAfterParse(0);
+    let validationResult: ExcelValidationResult = { error: null, hasData: false, totalDataRows: 0 };
 
     try {
       const reader = new FileReader();
@@ -71,27 +73,31 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
           const worksheet = workbook.Sheets[sheetName];
           const jsonData = XLSX.utils.sheet_to_json<any>(worksheet, { header: 1, blankrows: false });
 
+          const actualDataRows = jsonData.length > 1 ? jsonData.length - 1 : 0;
+          setTotalDataRowsAfterParse(actualDataRows);
+
           if (!jsonData || jsonData.length === 0) {
-            validationResult = { error: "The Excel file is empty or could not be read.", hasData: false };
+            validationResult = { error: "The Excel file is empty or could not be read.", hasData: false, totalDataRows: 0 };
           } else {
             const headersFromExcel = jsonData[0] as string[];
             if (!headersFromExcel || headersFromExcel.length === 0) {
-                validationResult = { error: "The Excel file is missing headers.", hasData: false };
-            } else if (headersFromExcel.length !== customColumnHeaders.length || 
+                validationResult = { error: "The Excel file is missing headers.", hasData: false, totalDataRows: actualDataRows };
+            } else if (headersFromExcel.length !== customColumnHeaders.length ||
                 !headersFromExcel.every((header, index) => header?.trim() === customColumnHeaders[index]?.trim())) {
-              validationResult = { 
-                error: `Invalid headers. Expected: "${customColumnHeaders.join(", ")}". Found: "${headersFromExcel.join(", ")}". Please use the provided template.`, 
-                hasData: jsonData.length > 1 
+              validationResult = {
+                error: `Invalid headers. Expected: "${customColumnHeaders.join(", ")}". Found: "${headersFromExcel.join(", ")}". Please use the provided template.`,
+                hasData: actualDataRows > 0, // Data might exist even with wrong headers
+                totalDataRows: actualDataRows
               };
-              setPreviewData(jsonData.slice(0, MAX_PREVIEW_ROWS + 1)); 
+              setPreviewData(jsonData.slice(0, MAX_PREVIEW_ROWS + 1));
             } else {
               setPreviewData(jsonData.slice(0, MAX_PREVIEW_ROWS + 1));
-              validationResult = { error: null, hasData: jsonData.length > 1 };
+              validationResult = { error: null, hasData: actualDataRows > 0, totalDataRows: actualDataRows };
             }
           }
         } catch (e: any) {
           console.error("Error parsing Excel file:", e);
-          validationResult = { error: `Error parsing Excel file: ${e.message || 'Unknown error'}`, hasData: false };
+          validationResult = { error: `Error parsing Excel file: ${e.message || 'Unknown error'}`, hasData: false, totalDataRows: 0 };
           setPreviewData(null);
         } finally {
           setIsParsing(false);
@@ -99,36 +105,40 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
         }
       };
       reader.onerror = () => {
-        validationResult = { error: "Failed to read the file.", hasData: false };
+        validationResult = { error: "Failed to read the file.", hasData: false, totalDataRows: 0 };
         setIsParsing(false);
         onValidationComplete(validationResult);
       };
       reader.readAsArrayBuffer(file);
     } catch (e: any) {
       console.error("Error initiating file read:", e);
-      validationResult = { error: `Error reading file: ${e.message}`, hasData: false };
+      validationResult = { error: `Error reading file: ${e.message}`, hasData: false, totalDataRows: 0 };
       setIsParsing(false);
       onValidationComplete(validationResult);
     }
-  }, [isParsing, onValidationComplete]); 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isParsing, onValidationComplete]); // Removed `setParseError` as it's handled by `onValidationComplete`
 
   useEffect(() => {
-    if (uploadedFileState && uploadedFileState.file && uploadedFileState.status === 'success') {
+    if (uploadedFileState?.file && uploadedFileState.status === 'success') {
       processFile(uploadedFileState.file);
-    } else if (!uploadedFileState || uploadedFileState.status === 'idle' || uploadedFileState.status === 'error'){
-        setPreviewData(null);
-        setIsParsing(false); 
-        if(uploadedFileState && uploadedFileState.status === 'error') {
-            onValidationComplete({ error: uploadedFileState.errorMessage || "File upload error.", hasData: false });
-        } else if (!uploadedFileState || uploadedFileState.status === 'idle') {
-            onValidationComplete({ error: null, hasData: false});
-        }
+    } else {
+      setPreviewData(null);
+      setTotalDataRowsAfterParse(0);
+      setIsParsing(false);
+
+      if (uploadedFileState?.status === 'error') {
+        onValidationComplete({ error: uploadedFileState.errorMessage || "File upload error.", hasData: false, totalDataRows: 0 });
+      } else if (!uploadedFileState || uploadedFileState.status === 'idle') {
+        onValidationComplete({ error: null, hasData: false, totalDataRows: 0 });
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uploadedFileState, processFile, onValidationComplete]);
 
   const validationErrorToDisplay = excelValidationState?.error;
-  const isSuccessWithoutError = uploadedFileState?.status === 'success' && !validationErrorToDisplay && excelValidationState?.hasData;
+  const isSuccessAndHasData = uploadedFileState?.status === 'success' && !validationErrorToDisplay && excelValidationState?.hasData;
+  const hasPreviewableData = previewData && previewData.length > 1; // Header + at least one data row
 
   if (isParsing) {
     return (
@@ -147,9 +157,9 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
           Download Excel Template
         </Button>
       </div>
-      
+
       <FileUploadZone onFileAccepted={onFileChange} />
-      
+
       {uploadedFileState?.status === 'error' && uploadedFileState.errorMessage && (
          <Card className="border-destructive bg-destructive/10">
           <CardHeader>
@@ -163,7 +173,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
           </CardContent>
         </Card>
       )}
-      
+
       {validationErrorToDisplay && (
          <Card className="border-destructive bg-destructive/10">
           <CardHeader>
@@ -174,11 +184,12 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
           </CardHeader>
           <CardContent>
             <p className="text-destructive">{validationErrorToDisplay}</p>
+            {excelValidationState?.hasData && <p className="text-destructive mt-1">Data was found, but headers are incorrect. Please use the template.</p>}
           </CardContent>
         </Card>
       )}
 
-      {isSuccessWithoutError && (
+      {isSuccessAndHasData && (
          <Card className="border-green-500 bg-green-500/10">
           <CardHeader>
             <CardTitle className="flex items-center text-green-600 text-lg">
@@ -187,15 +198,30 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-green-700">The uploaded Excel file is valid and contains data. Preview below.</p>
+            <p className="text-green-700">The uploaded Excel file is valid and contains {totalDataRowsAfterParse} data row(s). Preview below.</p>
           </CardContent>
         </Card>
       )}
 
-      {previewData && previewData.length > 0 && (
+      {!isSuccessAndHasData && !validationErrorToDisplay && uploadedFileState?.status === 'success' && !excelValidationState?.hasData && (
+        <Card className="border-orange-500 bg-orange-500/10">
+          <CardHeader>
+            <CardTitle className="flex items-center text-orange-600 text-lg">
+              <AlertTriangle className="mr-2 h-5 w-5" />
+              No Data Found
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-orange-700">The Excel file headers are valid, but no data rows were found to submit.</p>
+          </CardContent>
+        </Card>
+      )}
+
+
+      {hasPreviewableData && (
         <div className="space-y-2 mt-4">
-          <h3 className="text-lg font-semibold">Parsed Data Preview:</h3>
-          <ScrollArea className="border rounded-md shadow-sm bg-card h-[300px] sm:h-[calc(100vh-600px)] md:h-[300px] min-h-[200px]"> 
+          <h3 className="text-lg font-semibold">Data Preview:</h3>
+          <ScrollArea className="border rounded-md shadow-sm bg-card h-[300px] sm:h-[calc(100vh-600px)] md:h-[300px] min-h-[200px]">
             <div className="overflow-auto">
               <Table className="min-w-full text-sm">
                 <TableHeader className="bg-muted/50 sticky top-0 z-10">
@@ -226,24 +252,18 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
             <ScrollBar orientation="horizontal" />
             <ScrollBar orientation="vertical" />
           </ScrollArea>
-           {(previewData.length -1) > MAX_PREVIEW_ROWS && (
+           {totalDataRowsAfterParse > MAX_PREVIEW_ROWS && (
             <p className="text-xs text-muted-foreground mt-1">
-                Showing first {MAX_PREVIEW_ROWS} of {previewData.length - 1} data rows.
+                Showing first {MAX_PREVIEW_ROWS} of {totalDataRowsAfterParse} data rows. All rows will be processed.
             </p>
            )}
         </div>
       )}
 
-      {!uploadedFileState && !previewData && (
+      {!isParsing && !uploadedFileState && !previewData && (
          <div className="flex flex-col items-center justify-center p-4 text-muted-foreground border-2 border-dashed rounded-lg min-h-[100px]">
             <FileText className="w-8 h-8 mb-2"/>
             <p>Upload an Excel file to see a preview.</p>
-        </div>
-      )}
-      {uploadedFileState && uploadedFileState.status === 'success' && !previewData && !validationErrorToDisplay && (
-        <div className="flex flex-col items-center justify-center p-4 text-muted-foreground border-2 border-dashed rounded-lg min-h-[100px]">
-            <FileText className="w-8 h-8 mb-2"/>
-            <p>{excelValidationState && !excelValidationState.hasData && !excelValidationState.error ? "No data rows found in the file." : "No data to preview."}</p>
         </div>
       )}
     </div>

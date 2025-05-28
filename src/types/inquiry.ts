@@ -12,4 +12,6 @@ export interface UploadedFile {
 export interface ExcelValidationResult {
   error: string | null;
   hasData: boolean; // Indicates if there are actual data rows beyond the header
+  totalDataRows?: number; // Total number of data rows found (excluding header)
 }
+
