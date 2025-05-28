@@ -46,7 +46,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
        <div className="absolute top-8 left-8">
         <Link href="/" className="flex items-center gap-2 text-xl font-semibold text-foreground">
-          <Image src="https://placehold.co/150x24.png" alt="Adpopcorn Logo" width={150} height={24} data-ai-hint="Adpopcorn logo" />
+          <Image src="/adpopcorn-logo.png" alt="Adpopcorn Logo" width={150} height={24} />
         </Link>
       </div>
       <div className="w-full max-w-md">
@@ -58,4 +58,3 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
     </div>
   );
 }
-
