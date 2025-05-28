@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Download, Loader2, AlertTriangle, CheckCircle, FileText } from 'lucide-react';
-import { FileUploadZone } from './FileUploadZone';
+// import { FileUploadZone } from './FileUploadZone'; // No longer imported here, managed by InquiryModal
 import type { UploadedFile } from '@/types/inquiry';
 import * as XLSX from 'xlsx';
 import {
@@ -20,11 +20,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface ExcelUploadTabProps {
   uploadedFileState: UploadedFile | null;
-  // This prop is actually set by InquiryModal's handleFileAccepted.
-  // The name mismatch might have been an issue. However, ExcelUploadTab only *receives* the state.
-  // For clarity, let's ensure the prop name used here matches what InquiryModal passes.
-  // InquiryModal passes uploadedFile to ExcelUploadTab as uploadedFileState, which is correct.
-  // onFileAccepted is passed from InquiryModal to FileUploadZone.
+  // onFileAccepted is passed from InquiryModal to FileUploadZone, not directly here
 }
 
 const customColumnHeaders = [
@@ -45,7 +41,7 @@ export function ExcelUploadTab({ uploadedFileState }: ExcelUploadTabProps) {
 
   const handleDownloadTemplate = () => {
     const link = document.createElement('a');
-    link.href = '/inquiry_template.xlsx';
+    link.href = '/inquiry_template.xlsx'; // Assumes template is in public folder
     link.setAttribute('download', 'inquiry_template.xlsx');
     document.body.appendChild(link);
     link.click();
@@ -99,7 +95,7 @@ export function ExcelUploadTab({ uploadedFileState }: ExcelUploadTabProps) {
         setIsParsing(false);
       };
       reader.readAsArrayBuffer(file);
-    } catch (e: any) => {
+    } catch (e: any) { // Corrected syntax: removed '=>'
       console.error("Error initiating file read:", e);
       setParseError(`Error reading file: ${e.message}`);
       setIsParsing(false);
@@ -125,13 +121,7 @@ export function ExcelUploadTab({ uploadedFileState }: ExcelUploadTabProps) {
         </Button>
       </div>
       
-      {/* FileUploadZone is now part of InquiryModal's direct children, not ExcelUploadTab's. 
-          This component now only *reacts* to uploadedFileState.
-          The InquiryModal will pass onFileAccepted to FileUploadZone.
-          So, FileUploadZone should NOT be rendered here.
-      */}
-      {/* <FileUploadZone onFileAccepted={onFileAccepted} />  <- This was a mistake, onFileAccepted is not a prop here */}
-
+      {/* FileUploadZone is managed by InquiryModal and its state is passed via uploadedFileState */}
 
       {isParsing && (
         <div className="flex items-center justify-center p-4 text-muted-foreground">
@@ -197,6 +187,7 @@ export function ExcelUploadTab({ uploadedFileState }: ExcelUploadTabProps) {
                           {String(cell)}
                         </TableCell>
                       ))}
+                      {/* Fill empty cells if row has fewer cells than header */}
                       {Array.from({ length: Math.max(0, previewData[0].length - row.length) }).map((_, emptyCellIndex) => (
                         <TableCell key={`empty-${rowIndex}-${emptyCellIndex}`} className="px-3 py-1.5 whitespace-nowrap truncate max-w-[200px]"></TableCell>
                       ))}
@@ -222,7 +213,7 @@ export function ExcelUploadTab({ uploadedFileState }: ExcelUploadTabProps) {
             <FileText className="w-8 h-8 mb-2"/>
             {uploadedFileState.status === 'uploading' && <p>File is processing...</p>}
             {uploadedFileState.status === 'idle' && <p>File selected. Waiting for processing.</p>}
-            {uploadedFileState.status !== 'uploading' && uploadedFileState.status !== 'idle' &&  <p>No data to preview or file is empty.</p>}
+            {(uploadedFileState.status !== 'uploading' && uploadedFileState.status !== 'idle' && uploadedFileState.status !== 'success') &&  <p>No data to preview or file is empty/invalid.</p>}
         </div>
       )}
 
