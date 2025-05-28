@@ -51,7 +51,7 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
 
   const handleDownloadTemplate = () => {
     const link = document.createElement('a');
-    link.href = '/inquiry_template.xlsx'; // Ensure this file exists in your /public folder
+    link.href = '/inquiry_template.xlsx';
     link.setAttribute('download', 'inquiry_template.xlsx');
     document.body.appendChild(link);
     link.click();
@@ -79,18 +79,16 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
              throw new Error("No sheets found in the Excel file.");
           }
           const worksheet = workbook.Sheets[sheetName];
-          // header: 1 ensures first row is treated as array of strings
-          // blankrows: false skips empty rows
           const jsonData = XLSX.utils.sheet_to_json<any>(worksheet, { header: 1, blankrows: false });
 
           const actualDataRows = jsonData.length > 1 ? jsonData.length - 1 : 0;
           setTotalDataRowsAfterParse(actualDataRows);
 
-          if (!jsonData || jsonData.length === 0) { // No data at all (not even headers)
+          if (!jsonData || jsonData.length === 0) {
             validationResult = { error: "The Excel file is empty or could not be read.", hasData: false, totalDataRows: 0 };
           } else {
             const headersFromExcel = jsonData[0] as string[];
-            if (!headersFromExcel || headersFromExcel.length === 0) { // Headers row is empty
+            if (!headersFromExcel || headersFromExcel.length === 0) {
                 validationResult = { error: "The Excel file is missing headers.", hasData: false, totalDataRows: actualDataRows };
             } else if (headersFromExcel.length !== customColumnHeaders.length ||
                 !headersFromExcel.every((header, index) => header?.trim() === customColumnHeaders[index]?.trim())) {
@@ -99,9 +97,9 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
                 hasData: actualDataRows > 0,
                 totalDataRows: actualDataRows
               };
-              setPreviewData(jsonData); // Show preview even with wrong headers to help debug
+              setPreviewData(jsonData); 
             } else {
-              setPreviewData(jsonData); // Headers are valid, show all data
+              setPreviewData(jsonData); 
               validationResult = { error: null, hasData: actualDataRows > 0, totalDataRows: actualDataRows };
             }
           }
@@ -126,21 +124,28 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
       setIsParsing(false);
       onValidationComplete(validationResult);
     }
-  }, [isParsing, onValidationComplete]);
+  }, [isParsing, onValidationComplete]); // Removed processFile from its own dependency array for stability, it's a stable function now
 
   useEffect(() => {
     if (uploadedFileState?.file && uploadedFileState.status === 'success') {
       processFile(uploadedFileState.file);
-    } else {
+    } else if (uploadedFileState && uploadedFileState.status === 'uploading') {
+      // While "uploading" (simulated), clear local preview but don't affect parent's validation state yet
+      setIsParsing(true); // Show parsing UI even for simulated upload
       setPreviewData(null);
       setTotalDataRowsAfterParse(0);
-      // No need to setIsParsing(false) here as processFile handles it.
-      if (!uploadedFileState || uploadedFileState.status === 'idle' || uploadedFileState.status === 'error') {
-         // Reset validation state if file is removed or was never successfully processed.
-         onValidationComplete({ error: uploadedFileState?.errorMessage || null, hasData: false, totalDataRows: 0 });
+    } else {
+      // File is removed, or error in FileUploadZone, or idle
+      setIsParsing(false);
+      setPreviewData(null);
+      setTotalDataRowsAfterParse(0);
+      // Only call onValidationComplete if there's no active file or an initial error from FileUploadZone
+      if (!uploadedFileState || uploadedFileState.status === 'error' || uploadedFileState.status === 'idle') {
+        onValidationComplete({ error: uploadedFileState?.errorMessage || null, hasData: false, totalDataRows: 0 });
       }
     }
   }, [uploadedFileState, processFile, onValidationComplete]);
+
 
   const validationErrorToDisplay = excelValidationState?.error;
   const isSuccessAndHasData = uploadedFileState?.status === 'success' && !validationErrorToDisplay && excelValidationState?.hasData;
@@ -149,7 +154,6 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
   const handleRemoveFile = () => {
     onFileChange(null); // This will trigger the useEffect above to clear states
   };
-
 
   if (isParsing) {
     return (
@@ -162,18 +166,34 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
 
   return (
     <div className="space-y-6 py-2">
-      <div className="flex justify-end items-center">
-        <Button variant="outline" onClick={handleDownloadTemplate} className="w-full sm:w-auto">
-          <Download className="mr-2 h-4 w-4" />
-          Download Excel Template
-        </Button>
-      </div>
-
-      {(!uploadedFileState || uploadedFileState.status === 'error' || uploadedFileState.status === 'idle') && !isParsing && (
-        <FileUploadZone onFileAccepted={onFileChange} />
-      )}
-
-      {uploadedFileState && !isParsing && (
+       {/* Section for Download Template and File Upload Zone / File Info */}
+      {!uploadedFileState || uploadedFileState.status === 'idle' || uploadedFileState.status === 'error' ? (
+        // Show download button and FileUploadZone when no file is active or if there was an error in upload zone
+        <>
+          <div className="flex justify-end items-center">
+            <Button variant="outline" onClick={handleDownloadTemplate} className="w-full sm:w-auto">
+              <Download className="mr-2 h-4 w-4" />
+              Download Excel Template
+            </Button>
+          </div>
+          <FileUploadZone onFileAccepted={onFileChange} />
+          {uploadedFileState?.status === 'error' && uploadedFileState.errorMessage && (
+            <div className="p-4 border rounded-lg bg-destructive/10 text-destructive text-sm">
+              <div className="flex items-center space-x-3">
+                <FileText className="w-6 h-6" />
+                <div>
+                  <p className="font-medium truncate max-w-[200px] sm:max-w-xs md:max-w-sm">
+                    {uploadedFileState.name} ({formatBytes(uploadedFileState.size)})
+                  </p>
+                  <p>{uploadedFileState.errorMessage}</p>
+                </div>
+                <XCircle className="w-5 h-5 ml-auto" />
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        // Show file info and remove button when a file is successfully "uploaded" (selected)
         <div className="p-4 border rounded-lg bg-muted/30">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -188,111 +208,107 @@ export function ExcelUploadTab({ uploadedFileState, onFileChange, onValidationCo
               </div>
             </div>
             <div className="flex items-center space-x-2">
-                {uploadedFileState.status === 'uploading' && <Loader2 className="w-5 h-5 text-primary animate-spin" />}
-                {uploadedFileState.status === 'success' && <CheckCircle2 className="w-5 h-5 text-green-500" />}
-                {uploadedFileState.status === 'error' && <XCircle className="w-5 h-5 text-destructive" />}
-                 <Button variant="ghost" size="icon" onClick={handleRemoveFile}>
-                    <XCircle className="w-5 h-5 text-muted-foreground hover:text-destructive" />
-                 </Button>
+              {uploadedFileState.status === 'success' && <CheckCircle2 className="w-5 h-5 text-green-500" />}
+              <Button variant="ghost" size="icon" onClick={handleRemoveFile}>
+                <XCircle className="w-5 h-5 text-muted-foreground hover:text-destructive" />
+              </Button>
             </div>
           </div>
-           {uploadedFileState.status === 'error' && uploadedFileState.errorMessage && (
-             <p className="text-xs text-destructive mt-1">{uploadedFileState.errorMessage}</p>
-           )}
         </div>
       )}
 
 
-      {validationErrorToDisplay && (
-         <Card className="border-destructive bg-destructive/10">
-          <CardHeader>
-            <CardTitle className="flex items-center text-destructive text-lg">
-              <AlertTriangle className="mr-2 h-5 w-5" />
-              Validation Error
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-destructive">{validationErrorToDisplay}</p>
-            {excelValidationState?.hasData && previewData && previewData.length <=1 && <p className="text-destructive mt-1">No data rows found despite potentially correct headers.</p>}
-            {excelValidationState?.hasData && !excelValidationState?.error && previewData && previewData.length <=1 && <p className="text-orange-600 mt-1">Headers are valid, but no data rows found.</p>}
+      {/* Validation and Preview Section - only shown if a file was processed */}
+      {uploadedFileState && uploadedFileState.status === 'success' && (
+        <>
+          {validationErrorToDisplay && (
+            <Card className="border-destructive bg-destructive/10">
+              <CardHeader>
+                <CardTitle className="flex items-center text-destructive text-lg">
+                  <AlertTriangle className="mr-2 h-5 w-5" />
+                  Validation Error
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-destructive">{validationErrorToDisplay}</p>
+                {excelValidationState?.totalDataRows === 0 && <p className="text-destructive mt-1">No data rows found.</p>}
+              </CardContent>
+            </Card>
+          )}
 
-          </CardContent>
-        </Card>
-      )}
+          {isSuccessAndHasData && (
+            <Card className="border-green-500 bg-green-500/10">
+              <CardHeader>
+                <CardTitle className="flex items-center text-green-600 text-lg">
+                  <CheckCircle2 className="mr-2 h-5 w-5" />
+                  File Valid & Ready
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-green-700">The uploaded Excel file is valid and contains {excelValidationState?.totalDataRows} data row(s). Preview below.</p>
+              </CardContent>
+            </Card>
+          )}
 
-      {isSuccessAndHasData && (
-         <Card className="border-green-500 bg-green-500/10">
-          <CardHeader>
-            <CardTitle className="flex items-center text-green-600 text-lg">
-              <CheckCircle2 className="mr-2 h-5 w-5" />
-              File Valid & Ready
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-green-700">The uploaded Excel file is valid and contains {totalDataRowsAfterParse} data row(s). Preview below.</p>
-          </CardContent>
-        </Card>
-      )}
+          {!isSuccessAndHasData && !validationErrorToDisplay && excelValidationState && !excelValidationState.hasData && (
+            <Card className="border-orange-500 bg-orange-500/10">
+              <CardHeader>
+                <CardTitle className="flex items-center text-orange-600 text-lg">
+                  <AlertTriangle className="mr-2 h-5 w-5" />
+                  No Data Found
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-orange-700">The Excel file headers are valid, but no data rows were found to submit.</p>
+              </CardContent>
+            </Card>
+          )}
 
-      {!isSuccessAndHasData && !validationErrorToDisplay && uploadedFileState?.status === 'success' && !excelValidationState?.hasData && (
-        <Card className="border-orange-500 bg-orange-500/10">
-          <CardHeader>
-            <CardTitle className="flex items-center text-orange-600 text-lg">
-              <AlertTriangle className="mr-2 h-5 w-5" />
-              No Data Found
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-orange-700">The Excel file headers are valid, but no data rows were found to submit.</p>
-          </CardContent>
-        </Card>
-      )}
-
-
-      {hasPreviewableData && (
-        <div className="space-y-2 mt-4">
-          <h3 className="text-lg font-semibold">Data Preview:</h3>
-          <ScrollArea className="border rounded-md shadow-sm bg-card h-[300px] sm:h-[calc(100vh-600px)] md:h-[300px] min-h-[200px]">
-            <div className="overflow-auto">
-              <Table className="min-w-full text-sm">
-                <TableHeader className="bg-muted/50 sticky top-0 z-10">
-                  <TableRow>
-                    {previewData[0].map((header, index) => (
-                      <TableHead key={`header-${index}`} className="px-3 py-2 whitespace-nowrap font-semibold">
-                        {header || `Column ${index + 1}`}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {previewData.slice(1).map((row, rowIndex) => ( // .slice(1) to skip header row in data
-                    <TableRow key={`row-${rowIndex}`} className={rowIndex % 2 === 1 ? "bg-muted/20" : ""}>
-                      {row.map((cell, cellIndex) => (
-                        <TableCell key={`cell-${rowIndex}-${cellIndex}`} className="px-3 py-1.5 whitespace-nowrap truncate max-w-[200px]">
-                          {String(cell)}
-                        </TableCell>
+          {hasPreviewableData && (
+            <div className="space-y-2 mt-4">
+              <h3 className="text-lg font-semibold">Data Preview:</h3>
+              <ScrollArea className="border rounded-md shadow-sm bg-card h-[300px] sm:h-[calc(100vh-600px)] md:h-[300px] min-h-[200px]">
+                <div className="overflow-auto">
+                  <Table className="min-w-full text-sm">
+                    <TableHeader className="bg-muted/50 sticky top-0 z-10">
+                      <TableRow>
+                        {previewData[0].map((header, index) => (
+                          <TableHead key={`header-${index}`} className="px-3 py-2 whitespace-nowrap font-semibold">
+                            {header || `Column ${index + 1}`}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {previewData.slice(1).map((row, rowIndex) => (
+                        <TableRow key={`row-${rowIndex}`} className={rowIndex % 2 === 1 ? "bg-muted/20" : ""}>
+                          {row.map((cell, cellIndex) => (
+                            <TableCell key={`cell-${rowIndex}-${cellIndex}`} className="px-3 py-1.5 whitespace-nowrap truncate max-w-[200px]">
+                              {String(cell)}
+                            </TableCell>
+                          ))}
+                          {Array.from({ length: Math.max(0, previewData[0].length - row.length) }).map((_, emptyCellIndex) => (
+                            <TableCell key={`empty-${rowIndex}-${emptyCellIndex}`} className="px-3 py-1.5 whitespace-nowrap truncate max-w-[200px]"></TableCell>
+                          ))}
+                        </TableRow>
                       ))}
-                      {/* Pad with empty cells if row has fewer cells than header */}
-                      {Array.from({ length: Math.max(0, previewData[0].length - row.length) }).map((_, emptyCellIndex) => (
-                        <TableCell key={`empty-${rowIndex}-${emptyCellIndex}`} className="px-3 py-1.5 whitespace-nowrap truncate max-w-[200px]"></TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                    </TableBody>
+                  </Table>
+                </div>
+                <ScrollBar orientation="horizontal" />
+                <ScrollBar orientation="vertical" />
+              </ScrollArea>
+              {totalDataRowsAfterParse > 0 && (
+                <p className="text-xs text-muted-foreground mt-1">
+                    Displaying all {totalDataRowsAfterParse} data row(s).
+                </p>
+              )}
             </div>
-            <ScrollBar orientation="horizontal" />
-            <ScrollBar orientation="vertical" />
-          </ScrollArea>
-           {totalDataRowsAfterParse > 0 && (
-            <p className="text-xs text-muted-foreground mt-1">
-                Displaying all {totalDataRowsAfterParse} data row(s).
-            </p>
-           )}
-        </div>
+          )}
+        </>
       )}
       
-      {/* Placeholder when no file is uploaded and not parsing */}
+      {/* Placeholder when no file is uploaded and not parsing, and not in an error state from FileUploadZone */}
       {!isParsing && !uploadedFileState && !previewData && (
          <div className="flex flex-col items-center justify-center p-4 text-muted-foreground border-2 border-dashed rounded-lg min-h-[100px]">
             <FileText className="w-8 h-8 mb-2"/>
