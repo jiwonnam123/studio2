@@ -20,8 +20,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 const ADMIN_EMAIL = 'jirrral@gmail.com';
-// 처리 상태 옵션을 한국어로 정의합니다.
-const STATUS_OPTIONS = ["처리 전", "처리 중", "보류 중", "처리 완료", "종료됨", "정보 필요"];
+const STATUS_OPTIONS_KOREAN = ["처리 전", "처리 중", "보류 중", "처리 완료", "종료됨", "정보 필요"];
 const ITEMS_PER_PAGE = 20;
 
 interface FlattenedDataRow extends SubmittedInquiryDataRow {
@@ -29,9 +28,9 @@ interface FlattenedDataRow extends SubmittedInquiryDataRow {
   originalInquiryId: string;
   originalInquirySubmittedAt: string;
   originalDataRowIndex: number;
-  userId?: string;
-  source?: 'excel' | 'direct';
-  fileName?: string;
+  submitterUserId?: string;
+  submissionSource?: 'excel' | 'direct';
+  submissionFileName?: string;
 }
 
 export default function DashboardPage() {
@@ -95,7 +94,7 @@ export default function DashboardPage() {
             userName: item.userName || '',
             contact: item.contact || '',
             remarks: item.remarks || '',
-            status: item.status || "처리 전", // 기본 상태를 한국어로 설정
+            status: item.status || "처리 전",
             adminNotes: item.adminNotes || '',
         }));
 
@@ -129,9 +128,9 @@ export default function DashboardPage() {
         originalInquiryId: inquiry.id,
         originalInquirySubmittedAt: inquiry.submittedAt,
         originalDataRowIndex: dataRowIndex,
-        userId: isAdmin ? inquiry.userId : undefined,
-        source: isAdmin ? inquiry.source : undefined,
-        fileName: isAdmin ? inquiry.fileName : undefined,
+        submitterUserId: isAdmin ? inquiry.userId : undefined,
+        submissionSource: isAdmin ? inquiry.source : undefined,
+        submissionFileName: isAdmin ? inquiry.fileName : undefined,
       }))
     );
   }, [submittedInquiries, isAdmin]);
@@ -290,12 +289,11 @@ export default function DashboardPage() {
     );
   }
 
-  // renderStatusBadge는 한국어 상태 문자열을 직접 처리합니다.
   const renderStatusBadge = (status: string) => {
     let variant: "default" | "secondary" | "destructive" | "outline" = "outline";
     let icon = <Clock className="mr-1 h-3 w-3" />;
 
-    switch (status?.toLowerCase()) { // DB에 영문 상태가 있을 경우를 대비해 toLowerCase() 사용
+    switch (status?.toLowerCase()) {
       case "처리 전":
       case "pending":
         variant = "outline";
@@ -351,7 +349,7 @@ export default function DashboardPage() {
           </Button>
         </div>
 
-        {isAdmin && (
+        {isAdmin ? (
           <Card className="mb-6 shadow-sm border-dashed bg-muted/30">
             <CardHeader className="pb-3 pt-4">
               <CardTitle className="text-base">일괄 상태 업데이트</CardTitle>
@@ -363,7 +361,7 @@ export default function DashboardPage() {
                   <SelectValue placeholder="적용할 상태 선택" />
                 </SelectTrigger>
                 <SelectContent>
-                  {STATUS_OPTIONS.map(statusOption => (
+                  {STATUS_OPTIONS_KOREAN.map(statusOption => (
                     <SelectItem key={statusOption} value={statusOption}>
                       {statusOption}
                     </SelectItem>
@@ -381,7 +379,7 @@ export default function DashboardPage() {
               </Button>
             </CardContent>
           </Card>
-        )}
+        ) : null}
 
         {isLoadingInquiries ? (
           <Card>
@@ -417,7 +415,7 @@ export default function DashboardPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {isAdmin ? <TableHead className="w-[30px] px-1 py-2 text-center"><Checkbox checked={isAllOnPageSelected || (isSomeOnPageSelected ? "indeterminate" : false)} onCheckedChange={handleSelectAllOnPage} aria-label="이 페이지의 모든 항목 선택"/></TableHead> : null}
+                    {isAdmin ? (<TableHead className="w-[30px] px-1 py-2 text-center"><Checkbox checked={isAllOnPageSelected || (isSomeOnPageSelected ? "indeterminate" : false)} onCheckedChange={handleSelectAllOnPage} aria-label="이 페이지의 모든 항목 선택"/></TableHead>) : null}
                     <TableHead className="w-[120px] py-2 px-3 text-left">제출일</TableHead>
                     <TableHead className="min-w-[120px] max-w-[150px] py-2 px-3 text-left">캠페인 키</TableHead>
                     <TableHead className="min-w-[150px] max-w-[200px] py-2 px-3 text-left">캠페인 명</TableHead>
@@ -426,18 +424,13 @@ export default function DashboardPage() {
                     <TableHead className="w-[130px] py-2 px-3 text-left">연락처</TableHead>
                     <TableHead className="flex-1 min-w-[180px] py-2 px-3 text-left">비고</TableHead>
                     <TableHead className="w-[130px] py-2 px-3 text-center">상태</TableHead>
-                    {isAdmin ? <TableHead className="w-[70px] py-2 px-3 text-center">편집</TableHead> : null}
+                    {isAdmin ? (<TableHead className="w-[70px] py-2 px-3 text-center">편집</TableHead>) : null}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedDataRows.map((row) => (
                     <TableRow key={row.key} className="text-xs hover:bg-muted/50" data-state={selectedRows.has(row.key) ? "selected" : ""}>
-                      {isAdmin ? (
-                        <TableCell className="px-1 py-1 text-center">
-                           <Checkbox checked={selectedRows.has(row.key)} onCheckedChange={(checked) => handleRowSelectionChange(row, checked)} aria-labelledby={`label-select-row-${row.key}`}/>
-                           <span id={`label-select-row-${row.key}`} className="sr-only">캠페인 키 {row.campaignKey} 행 선택</span>
-                        </TableCell>
-                      ) : null}
+                      {isAdmin ? (<TableCell className="px-1 py-1 text-center"><Checkbox checked={selectedRows.has(row.key)} onCheckedChange={(checked) => handleRowSelectionChange(row, checked)} aria-labelledby={`label-select-row-${row.key}`}/><span id={`label-select-row-${row.key}`} className="sr-only">캠페인 키 {row.campaignKey} 행 선택</span></TableCell>) : null}
                       <TableCell className="font-medium py-2 px-3 text-left">{row.originalInquirySubmittedAt ? format(new Date(row.originalInquirySubmittedAt), "yyyy-MM-dd") : 'N/A'}</TableCell>
                       <TableCell className="py-2 px-3 text-left truncate max-w-[150px]">{row.campaignKey}</TableCell>
                       <TableCell className="py-2 px-3 text-left truncate max-w-[200px]">{row.campaignName}</TableCell>
@@ -461,7 +454,7 @@ export default function DashboardPage() {
                                       value={row.status}
                                       onValueChange={(newStatus) => handleIndividualStatusChange(row.originalInquiryId, row.originalDataRowIndex, newStatus)}
                                   >
-                                      {STATUS_OPTIONS.map(statusOption => (
+                                      {STATUS_OPTIONS_KOREAN.map(statusOption => (
                                           <DropdownMenuRadioItem key={statusOption} value={statusOption}>
                                               {statusOption}
                                           </DropdownMenuRadioItem>
@@ -507,4 +500,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
