@@ -1,4 +1,3 @@
-
 // src/workers/excelParser.worker.ts
 import * as XLSX from 'xlsx';
 import type { WorkerParseRequest, WorkerParseResponse } from '@/types/inquiry';
@@ -73,25 +72,30 @@ self.onmessage = async (event: MessageEvent<WorkerParseRequest>) => {
     console.log("🔧 [Worker] 4. arrayBuffer 변환 완료", performance.now());
     self.postMessage({ type: 'progress', stage: 'reading_file_done', progress: 30, fileSize } as WorkerParseResponse);
 
-    console.log("🔧 [Worker] 5. XLSX.read 시작", performance.now());
-    self.postMessage({ type: 'progress', stage: 'xlsx_read_start', progress: 40, fileSize } as WorkerParseResponse);
-    
-    const workbook = XLSX.read(arrayBuffer, { 
-      type: 'array',
-      cellStyles: false,
-      cellFormula: false,
-      cellHTML: false,
-      cellNF: false, 
-      cellDates: false,
-      dense: true, 
-      bookVBA: false,
-      // bookSheets: false, // !!! 이 옵션이 문제의 원인이었음. 제거하여 모든 시트 데이터를 파싱하도록 함.
-      bookProps: false,
-      sheetStubs: false,
-      raw: true // 원시 값만 가져옴 (데이터 타입 변환 최소화)
-    });
-    console.log("🔧 [Worker] 6. XLSX.read 완료", performance.now());
-    self.postMessage({ type: 'progress', stage: 'xlsx_read_done', progress: 60, fileSize } as WorkerParseResponse);
+    let workbook;
+    try {
+      console.log("🔧 [Worker] 5. XLSX.read 시작", performance.now());
+      self.postMessage({ type: 'progress', stage: 'xlsx_read_start', progress: 40, fileSize } as WorkerParseResponse);
+      workbook = XLSX.read(arrayBuffer, { 
+        type: 'array',
+        cellStyles: false,
+        cellFormula: false,
+        cellHTML: false,
+        cellNF: false, 
+        cellDates: false,
+        dense: true, 
+        bookVBA: false,
+        bookProps: false,
+        sheetStubs: false,
+        raw: true
+      });
+      console.log("🔧 [Worker] 6. XLSX.read 완료", performance.now());
+      self.postMessage({ type: 'progress', stage: 'xlsx_read_done', progress: 60, fileSize } as WorkerParseResponse);
+    } catch (xlsxError: any) {
+      console.error("🔧 [Worker] XLSX.read 중 심각한 오류 발생:", xlsxError);
+      response.error = `[Worker] XLSX.read Error: ${xlsxError.message || 'Unknown XLSX library error'}${xlsxError.stack ? '\nStack: ' + xlsxError.stack : ''}`;
+      throw xlsxError; // Re-throw to be caught by the outer catch
+    }
 
     const firstSheetName = workbook.SheetNames[0];
     if (!firstSheetName) {
@@ -113,7 +117,6 @@ self.onmessage = async (event: MessageEvent<WorkerParseRequest>) => {
       header: 1,
       blankrows: false, // 빈 행은 제외
       defval: '', // 빈 셀은 빈 문자열로
-      dense: true, 
       raw: true, // 원시 값으로 가져옴
     });
     console.log("🔧 [Worker] 8. sheet_to_json (전체 데이터 추출) 완료", { rawRowCount: allDataRaw.length }, performance.now());
@@ -184,13 +187,16 @@ self.onmessage = async (event: MessageEvent<WorkerParseRequest>) => {
 
   } catch (e: any) {
     console.error("🔧 [Worker] 에러 발생 (파싱 중):", e);
-    response.error = response.error || `[Worker] Error parsing file: ${e.message || 'Unknown error during parsing'}`;
+    // If response.error was already set by a more specific catch (like XLSX.read), don't overwrite it unless e has more info
+    if (!response.error || (e.message && response.error && !response.error.includes(e.message))) {
+       response.error = `[Worker] Error parsing file: ${e.message || 'Unknown error during parsing'}${e.stack ? '\nStack: ' + e.stack : ''}`;
+    }
+    console.error("🔧 [Worker] 최종 오류 정보 객체:", e); // Log the full error object
     response.success = false;
-    response.fullData = null; // 오류 시 fullData 초기화
-    response.dataExistsInSheet = false; // 오류 시 데이터 없음으로 간주
-    response.totalDataRows = 0; // 오류 시 행 수 0
+    response.fullData = null;
+    response.dataExistsInSheet = false;
+    response.totalDataRows = 0;
     if (!response.previewData && file) { 
-        // 최소한 헤더 템플릿이라도 보여주도록 시도
         response.previewData = [customColumnHeaders.map(h => String(h))]; 
     }
   } finally {

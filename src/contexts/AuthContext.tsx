@@ -1,4 +1,3 @@
-
 "use client";
 
 import type { UserProfile } from '@/types';
@@ -16,6 +15,7 @@ import {
   type User as FirebaseUser 
 } from "firebase/auth";
 import { app } from '@/lib/firebase'; 
+import { useToast } from '@/hooks/use-toast';
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -34,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true); // Start with loading true for initial auth check
+  const { toast } = useToast();
   // const router = useRouter(); // Removed, redirection handled by layouts/pages listening to context
 
   useEffect(() => {
@@ -113,10 +114,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true); 
     try {
       await signOut(auth);
+      toast({
+        title: "로그아웃 완료",
+        description: "안전하게 로그아웃되었습니다. 로그인 페이지로 이동합니다.",
+      });
       // onAuthStateChanged will set user to null, isAuthenticated to false, and setIsLoading to false.
     } catch (error: any) {
       console.error("Firebase logout error:", error);
       setIsLoading(false); // Reset loading on direct error
+      toast({
+        title: "로그아웃 오류",
+        description: "로그아웃 중 문제가 발생했습니다.",
+        variant: "destructive",
+      });
       throw error;
     }
   };

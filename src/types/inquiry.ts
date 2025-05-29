@@ -1,4 +1,3 @@
-
 export interface UploadedFile {
   file: File;
   name: string;
@@ -40,4 +39,16 @@ export interface ExcelValidationResult {
   fileSize?: number;
   processingTime?: number;
   isLargeFile?: boolean;
+}
+
+// Added SubmittedInquiryDataRow interface
+export interface SubmittedInquiryDataRow {
+  campaignKey: string;
+  campaignName: string;
+  adidOrIdfa: string;
+  userName: string;
+  contact: string;
+  remarks: string;
+  status: string;
+  adminNotes: string;
 }

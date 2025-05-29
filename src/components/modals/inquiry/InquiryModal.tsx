@@ -1,4 +1,3 @@
-
 "use client";
 
 import type React from 'react';
@@ -33,14 +32,14 @@ interface InquiryModalProps {
 type ActiveTab = 'excel' | 'direct';
 
 export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
-  const toastHookResult = useUiToast();
-  const toast = useCallback((options: Parameters<typeof toastHookResult.toast>[0]) => {
-    if (toastHookResult && typeof toastHookResult.toast === 'function') {
-      return toastHookResult.toast(options);
+  const { toast: actualUiToast } = useUiToast();
+  const toast = useCallback((options: Parameters<typeof actualUiToast>[0]) => {
+    if (actualUiToast && typeof actualUiToast === 'function') {
+      return actualUiToast(options);
     }
     console.warn("Toast function is currently disabled or not ready. Options:", options);
-    return { id: '', dismiss: () => {}, update: (props: any) => {} };
-  }, [toastHookResult]);
+    return { id: 'fallback-toast', dismiss: () => {}, update: (props: any) => {} };
+  }, [actualUiToast]);
 
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('excel');
@@ -87,9 +86,24 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
 
 
   const handleExcelValidationComplete = useCallback((result: WorkerParseResponse) => {
+    let displayError: string | null = null;
+    if (result.error) {
+      const lowerError = result.error.toLowerCase();
+      if (lowerError.includes("데이터가 없습니다") || lowerError.includes("내용이 없습니다") || lowerError.includes("no data")) {
+        displayError = "Excel 파일에 데이터가 없습니다.";
+      } else if (lowerError.includes("열 구조") || lowerError.includes("헤더") || lowerError.includes("컬럼") || lowerError.includes("column structure")) {
+        displayError = "Excel 파일의 열 구조가 올바르지 않습니다. 6개의 열로 구성된 데이터를 업로드해주세요.";
+      } else if (lowerError.includes("지원하지 않는") || lowerError.includes("파일 형식") || lowerError.includes("file type") || lowerError.includes("xlsx.read") || lowerError.includes("parsing error")) {
+        displayError = "지원하지 않는 파일 형식입니다. Excel 파일(xlsx, xls, csv)을 업로드해주세요.";
+      } else {
+        // 이전에 일반화된 메시지 (예: 타임아웃, 워커 내부 오류 등) 또는 기타 워커 오류
+        displayError = result.error; // 일단 워커가 보낸 메시지 유지, 아래에서 더 일반화 가능
+      }
+    }
+
     const newValidationResult: ExcelValidationResult = {
       isValid: result.success,
-      error: result.error || null,
+      error: displayError, // Key-word based simplified message
       hasData: result.dataExistsInSheet || false,
       previewData: result.previewData || null,
       fullData: result.fullData || null,
@@ -161,9 +175,9 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
         return;
       }
       console.error('[InquiryModal handleWorkerMessage] Worker ONERROR. ErrorEvent:', errorEvent);
-      const errorMessage = errorEvent.message || '알 수 없는 워커 오류입니다.';
+      const simplifiedErrorMessage = "파일을 처리하는 중 오류가 발생했습니다. 파일을 확인하거나 다시 시도해 주세요."; // Generic message for all worker errors
       handleExcelValidationComplete({
-        type: 'result', success: false, error: `워커 오류: ${errorMessage}`,
+        type: 'result', success: false, error: simplifiedErrorMessage, 
         previewData: null, fullData: null, totalDataRows: 0, headersValid: false, dataExistsInSheet: false,
         fileSize: fileToProcess.size, isLargeFile: fileToProcess.size > (5 * 1024 * 1024),
       });
@@ -212,10 +226,10 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
 
       localWorkerInstance = createExcelWorker();
       if (!localWorkerInstance) {
-        const errorMsg = 'Excel 처리 환경을 초기화할 수 없습니다.';
-        console.error(`[InquiryModal useEffect_uploadedFile] Worker creation FAILED for ${uploadedFile.file.name}. Error: ${errorMsg}`);
+        const simplifiedErrorMsg = "파일 분석 기능을 시작할 수 없습니다. 페이지를 새로고침해 주세요.";
+        console.error(`[InquiryModal useEffect_uploadedFile] Worker creation FAILED for ${uploadedFile.file.name}. Error: ${simplifiedErrorMsg}`);
         handleExcelValidationComplete({
-            type: 'result', success: false, error: errorMsg,
+            type: 'result', success: false, error: simplifiedErrorMsg,
             previewData: null, fullData: null, totalDataRows: 0, headersValid: false, dataExistsInSheet: false,
             fileSize: uploadedFile.file.size, isLargeFile: uploadedFile.file.size > (5 * 1024 * 1024)
         });
@@ -231,10 +245,10 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
 
         localTimeoutId = setTimeout(() => {
           if (workerRef.current === localWorkerInstance && currentFileRef.current?.name === uploadedFile?.file?.name) {
-              const timeoutMsg = `Excel 파일 처리 시간이 ${PROCESSING_TIMEOUT_MS / 1000}초를 초과했습니다.`;
+              const simplifiedTimeoutMsg = "파일 처리 시간이 초과되었습니다. 파일 크기나 형식을 확인해 주세요.";
               console.warn(`[InquiryModal useEffect_uploadedFile] Worker TIMEOUT for file ${uploadedFile?.file?.name}. Worker:`, localWorkerInstance, "Timeout ID:", localTimeoutId);
               handleExcelValidationComplete({
-                  type: 'result', success: false, error: timeoutMsg,
+                  type: 'result', success: false, error: simplifiedTimeoutMsg,
                   previewData: null, fullData: null, totalDataRows: 0, headersValid: false, dataExistsInSheet: false,
                   fileSize: uploadedFile?.file.size || 0, isLargeFile: (uploadedFile?.file.size || 0) > (5 * 1024 * 1024)
               });
@@ -248,25 +262,23 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
         }, PROCESSING_TIMEOUT_MS);
         timeoutRef.current = localTimeoutId; 
       }
-    } else if (uploadedFile && (uploadedFile.status === 'uploading' || uploadedFile.status === 'error')) {
-      console.log(`[InquiryModal useEffect_uploadedFile] File status is "${uploadedFile.status}". Waiting for 'success' or handling error. Error from dropzone:`, uploadedFile.errorMessage);
-      // For 'uploading', we just wait. For 'error', we might set validation state.
-      if (uploadedFile.status === 'error') {
-        setExcelValidationState({
-            isValid: false,
-            error: uploadedFile.errorMessage || "파일 업로드 중 오류가 발생했습니다.",
-            hasData: false,
-            headersValid: false,
-            totalDataRows: 0,
-            fullData: null,
-            previewData: null,
-            fileSize: uploadedFile.file?.size
-        });
-        clearWorkerAndTimeout(); // Ensure cleanup if dropzone itself errored
-        setIsProcessing(false); // Ensure processing is false
-      } else { // 'uploading'
-        setExcelValidationState(null); // Clear previous validation while new file is "uploading"
-      }
+    } else if (uploadedFile && uploadedFile.status === 'error') {
+      console.log(`[InquiryModal useEffect_uploadedFile] File status is "error". Handling error. Error from dropzone:`, uploadedFile.errorMessage);
+      setExcelValidationState({
+          isValid: false,
+          error: "파일 업로드에 실패했습니다. 다시 시도해 주세요.",
+          hasData: false,
+          headersValid: false,
+          totalDataRows: 0,
+          fullData: null,
+          previewData: null,
+          fileSize: uploadedFile.file?.size
+      });
+      clearWorkerAndTimeout(); // Ensure cleanup if dropzone itself errored
+      setIsProcessing(false); // Ensure processing is false
+    } else if (uploadedFile && uploadedFile.status === 'idle') {
+      console.log(`[InquiryModal useEffect_uploadedFile] File status is "idle". Waiting for 'success'.`);
+      setExcelValidationState(null); // Clear previous validation while new file is "idle"
     } else if (!uploadedFile) { // File removed or initial state
       console.log('[InquiryModal useEffect_uploadedFile] No valid file or file removed. Cleaning up states.');
       clearWorkerAndTimeout();
@@ -289,7 +301,7 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
         timeoutRef.current = null;
       }
     };
-  }, [uploadedFile, isProcessing, createExcelWorker, setupWorkerHandlers, handleExcelValidationComplete, clearWorkerAndTimeout, toast]);
+  }, [uploadedFile, createExcelWorker, setupWorkerHandlers, handleExcelValidationComplete, clearWorkerAndTimeout, toast]);
 
 
   const handleFileChange = useCallback((newFile: UploadedFile | null) => {
@@ -377,7 +389,7 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
       } else {
          toast({ // 토스트 기능 재활성화
           title: "제출 불가",
-          description: excelValidationState?.error || "유효한 Excel 파일을 업로드하고 데이터가 있는지 확인하세요.",
+          description: excelValidationState?.error || "제출할 수 없는 파일입니다. 파일 상태를 확인해 주세요.",
           variant: "destructive",
         });
         setIsSubmitting(false);
@@ -472,10 +484,7 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
         }}
       >
         <DialogHeader className="p-6 pb-2 text-center">
-          <DialogTitle className="text-2xl">문의 제출</DialogTitle>
-          <DialogDescription>
-            Excel 파일을 업로드하거나 직접 정보를 입력하세요.
-          </DialogDescription>
+          <DialogTitle>문의 접수</DialogTitle>
            {isProcessing && ( // Display this loader when isProcessing is true, regardless of activeTab
             <div className="flex items-center justify-center gap-2 text-sm text-primary pt-3">
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -513,19 +522,18 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
         </Tabs>
 
         <DialogFooter className="p-6 border-t bg-muted/30 flex-shrink-0">
-          <Button
-            type="button"
-            onClick={handleSubmitInquiry}
-            className="w-full sm:w-auto"
-            disabled={isSubmitDisabled}
-          >
-            {isSubmitting ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Image src="/submit-arrow.svg" alt="제출 아이콘" width={16} height={16} className="mr-2 h-4 w-4" />
-            )}
-            제출
-          </Button>
+          <div className="flex gap-2 justify-end">
+            <Button 
+              onClick={handleSubmitInquiry} 
+              disabled={isSubmitDisabled}
+              className={isSubmitting 
+                ? "cursor-not-allowed opacity-50" 
+                : "bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white font-semibold opacity-90"}
+            >
+              {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              접수
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -57,6 +56,7 @@ export function LoginForm() {
       toast({
         title: "로그인 성공",
         description: "다시 오신 것을 환영합니다!",
+        duration: 2000,
       });
     } catch (error: any) {
       let errorMessage = "예상치 못한 오류가 발생했습니다.";
@@ -94,6 +94,7 @@ export function LoginForm() {
       toast({
         title: "Google 로그인 성공",
         description: "환영합니다!",
+        duration: 2000,
       });
     } catch (error: any) {
       let errorMessage = "Google 로그인에 실패했습니다. 다시 시도해 주세요.";
@@ -181,9 +182,12 @@ export function LoginForm() {
           </span>
         </div>
         <Button variant="outline" className="w-full" onClick={handleGoogleLogin} disabled={isSubmitting || isGoogleSubmitting}>
-          {isGoogleSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          <GoogleIcon />
-          Google로 로그인
+          {isGoogleSubmitting ? (
+            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+          ) : (
+            <GoogleIcon />
+          )}
+          {isGoogleSubmitting ? '로그인 중...' : 'Google로 로그인'}
         </Button>
       </CardContent>
       <CardFooter className="flex-col items-start">

@@ -6,12 +6,13 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { RotateCcw } from 'lucide-react';
+import { useToast as useUiToast } from '@/hooks/use-toast';
 
-const NUM_ROWS = 10;
+const INITIAL_NUM_ROWS = 20;
 const NUM_COLS = 6;
 const MAX_HISTORY_ENTRIES = 30;
 
-const initialGridData = () => Array(NUM_ROWS).fill(null).map(() => Array(NUM_COLS).fill(''));
+const initialGridData = (rowCount: number = INITIAL_NUM_ROWS) => Array(rowCount).fill(null).map(() => Array(NUM_COLS).fill(''));
 
 interface CellPosition {
   r: number;
@@ -44,10 +45,12 @@ export interface DirectEntryTabHandles {
 }
 
 export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) => {
-  const [gridData, setGridData] = useState<string[][]>(initialGridData);
+  const [gridData, setGridData] = useState<string[][]>(() => initialGridData());
   const [history, setHistory] = useState<string[][][]>(() => [initialGridData().map(row => [...row])]);
   const [currentHistoryIndex, setCurrentHistoryIndex] = useState(0);
   
+  const { toast } = useUiToast();
+
   const [dragState, setDragState] = useState<DragState>({
     isSelecting: false,
     startCell: null,
@@ -92,6 +95,8 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const value = event.target.value;
+    if (rowIndex >= INITIAL_NUM_ROWS || colIndex >= NUM_COLS) return;
+
     const newGridData = gridData.map((row, rIdx) =>
       rIdx === rowIndex
         ? row.map((cell, cIdx) => (cIdx === colIndex ? value : cell))
@@ -112,22 +117,22 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
     const pastedText = event.clipboardData.getData('text/plain');
     const pastedRows = pastedText.split(/\r\n|\n|\r/);
     
-    const currentActiveGridData = gridData.map(row => [...row]);
+    const newGridData = gridData.map(row => [...row]);
 
     pastedRows.forEach((rowString, rOffset) => {
       const targetRow = startRowIndex + rOffset;
-      if (targetRow < NUM_ROWS) {
+      if (targetRow < INITIAL_NUM_ROWS) {
         const cells = rowString.split('\t');
         cells.forEach((cellValue, cOffset) => {
           const targetCol = startColIndex + cOffset;
           if (targetCol < NUM_COLS) {
-            currentActiveGridData[targetRow][targetCol] = cellValue;
+            newGridData[targetRow][targetCol] = cellValue;
           }
         });
       }
     });
-    setGridData(currentActiveGridData);
-    pushStateToHistory(currentActiveGridData);
+    setGridData(newGridData);
+    pushStateToHistory(newGridData);
   }, [gridData, pushStateToHistory]);
 
   const getNormalizedSelection = useCallback((): SelectionRange | null => {
@@ -279,10 +284,10 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
 
 
   const handleInitializeGrid = useCallback(() => {
-    const emptyGrid = initialGridData();
+    const emptyGrid = initialGridData(INITIAL_NUM_ROWS);
     const currentGridIsNotEmpty = gridData.some(row => row.some(cell => cell !== ''));
 
-    if (currentGridIsNotEmpty) {
+    if (currentGridIsNotEmpty || gridData.length !== INITIAL_NUM_ROWS) {
       setGridData(emptyGrid);
       pushStateToHistory(emptyGrid);
     } else if (history.length > 1 || currentHistoryIndex !== 0) { 
@@ -302,8 +307,12 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
       const firstInput = tableRef.current.querySelector<HTMLInputElement>('input[data-row="0"][data-col="0"]');
       firstInput?.focus();
     }
-  }, [gridData, history.length, currentHistoryIndex, pushStateToHistory]); 
-
+    toast({
+      title: "초기화 완료",
+      description: "필드가 성공적으로 초기화되었습니다.",
+      duration: 3000,
+    });
+  }, [gridData, history.length, currentHistoryIndex, pushStateToHistory, toast]); 
 
   return (
     <div className="space-y-4 py-2 flex flex-col h-full">
@@ -316,7 +325,7 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
             onClick={handleInitializeGrid}
           >
             <RotateCcw className="mr-2 h-4 w-4" />
-            그리드 초기화
+            필드 초기화
           </Button>
         </div>
       </div>
