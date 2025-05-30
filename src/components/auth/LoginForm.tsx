@@ -3,9 +3,12 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from 'next/image';
+import { useState, useCallback } from "react";
+import { Loader2, Eye, EyeOff } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -17,13 +20,13 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { LoginSchema } from "@/lib/schemas";
+import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { LoginSchema, SignupSchema } from "@/lib/schemas";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { useState } from "react";
+
+type AuthMode = 'login' | 'signup';
 
 // Google Icon SVG
 const GoogleIcon = () => (
@@ -35,14 +38,18 @@ const GoogleIcon = () => (
   </svg>
 );
 
-
 export function LoginForm() {
-  const { login, loginWithGoogle } = useAuth();
+  const { login, loginWithGoogle, signup } = useAuth();
   const router = useRouter();
+  const [mode, setMode] = useState<AuthMode>('login');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const form = useForm<z.infer<typeof LoginSchema>>({
+  const loginForm = useForm<z.infer<typeof LoginSchema>>({
     resolver: zodResolver(LoginSchema),
     defaultValues: {
       email: "",
@@ -50,7 +57,28 @@ export function LoginForm() {
     },
   });
 
-  async function onSubmit(data: z.infer<typeof LoginSchema>) {
+  const signupForm = useForm<z.infer<typeof SignupSchema>>({
+    resolver: zodResolver(SignupSchema),
+    defaultValues: {
+      email: "",
+      password: "",
+      confirmPassword: "",
+    },
+  });
+
+  const handleModeSwitch = (newMode: AuthMode) => {
+    if (mode === newMode || isTransitioning) return;
+    
+    setIsTransitioning(true);
+    
+    // 150ms 후에 모드 전환
+    setTimeout(() => {
+      setMode(newMode);
+      setIsTransitioning(false);
+    }, 150);
+  };
+
+  const onLogin = async (data: z.infer<typeof LoginSchema>) => {
     setIsSubmitting(true);
     try {
       await login(data.email, data.password);
@@ -60,154 +88,375 @@ export function LoginForm() {
         duration: 2000,
       });
     } catch (error: any) {
-      let errorMessage = "예상치 못한 오류가 발생했습니다.";
-      if (error.code) {
-        switch (error.code) {
-          case 'auth/user-not-found':
-          case 'auth/wrong-password':
-          case 'auth/invalid-credential':
-            errorMessage = "잘못된 이메일 또는 비밀번호입니다.";
-            break;
-          case 'auth/invalid-email':
-            errorMessage = "잘못된 이메일 형식입니다.";
-            break;
-          case 'auth/user-disabled':
-            errorMessage = "이 계정은 비활성화되었습니다.";
-            break;
-          default:
-            errorMessage = error.message || "로그인에 실패했습니다. 다시 시도해 주세요.";
-        }
-      }
-      toast({
-        title: "로그인 실패",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      handleAuthError(error, "로그인");
     } finally {
       setIsSubmitting(false);
     }
-  }
+  };
 
-  const handleGoogleLogin = async () => {
+  const onSignup = async (data: z.infer<typeof SignupSchema>) => {
+    if (data.password !== data.confirmPassword) {
+      signupForm.setError('confirmPassword', {
+        type: 'manual',
+        message: '비밀번호가 일치하지 않습니다.',
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await signup(data.email, data.password);
+      toast({
+        title: "회원가입 성공",
+        description: "가입을 환영합니다!",
+        duration: 2000,
+      });
+      handleModeSwitch('login');
+    } catch (error: any) {
+      handleAuthError(error, "회원가입");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGoogleAuth = async () => {
     setIsGoogleSubmitting(true);
     try {
       await loginWithGoogle();
       toast({
-        title: "Google 로그인 성공",
+        title: `${mode === 'login' ? '로그인' : '회원가입'} 성공`,
         description: "환영합니다!",
         duration: 2000,
       });
     } catch (error: any) {
-      let errorMessage = "Google 로그인에 실패했습니다. 다시 시도해 주세요.";
-      if (error.code) {
-        switch (error.code) {
-          case 'auth/popup-closed-by-user':
-            errorMessage = "로그인이 취소되었습니다. Google 로그인 팝업이 닫혔습니다. 이는 브라우저 보안 정책, 팝업 차단기 또는 타사 쿠키 제한 때문일 수 있습니다. 브라우저 설정을 확인하고 다시 시도해 주세요.";
-            break;
-          case 'auth/cancelled-popup-request':
-             errorMessage = "로그인이 취소되었습니다. 여러 팝업이 열렸거나 브라우저 보안 설정(팝업 또는 타사 쿠키 제한, Cross-Origin-Opener-Policy 등) 때문일 수 있습니다. 하나의 로그인 시도만 활성화되어 있는지 확인하고 다시 시도해 주세요.";
-            break;
-          case 'auth/popup-blocked-by-browser':
-            errorMessage = "로그인 실패. Google로 로그인하려면 이 사이트에 대한 팝업을 활성화하세요.";
-            break;
-          case 'auth/account-exists-with-different-credential':
-            errorMessage = "이 이메일로 이미 계정이 있지만 다른 로그인 방법을 사용했습니다. 해당 방법을 시도하거나 다른 Google 계정을 사용하세요.";
-            break;
-          case 'auth/unauthorized-domain':
-            errorMessage = "로그인 실패. 이 웹사이트의 도메인은 Google 로그인이 승인되지 않았습니다. 사이트 관리자에게 문의하거나 개발자인 경우 Firebase 프로젝트 설정을 확인하세요.";
-            break;
-          case 'auth/operation-not-allowed':
-             errorMessage = "이 Firebase 프로젝트에 Google 로그인이 활성화되어 있지 않습니다. Firebase 콘솔에서 활성화해주세요.";
-            break;
-          default:
-            errorMessage = error.message || "Google 로그인에 실패했습니다. 다시 시도해 주세요.";
-        }
-      }
-      toast({
-        title: "Google 로그인 실패",
-        description: errorMessage,
-        variant: "destructive",
-      });
+      handleAuthError(error, `Google ${mode === 'login' ? '로그인' : '회원가입'}`);
     } finally {
       setIsGoogleSubmitting(false);
     }
   };
 
+  const handleAuthError = (error: any, action: string) => {
+    let errorMessage = `예상치 못한 오류가 발생했습니다.`;
+    
+    if (error.code) {
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          errorMessage = "이미 사용 중인 이메일입니다.";
+          break;
+        case 'auth/user-not-found':
+        case 'auth/wrong-password':
+        case 'auth/invalid-credential':
+          errorMessage = "잘못된 이메일 또는 비밀번호입니다.";
+          break;
+        case 'auth/invalid-email':
+          errorMessage = "잘못된 이메일 형식입니다.";
+          break;
+        case 'auth/weak-password':
+          errorMessage = "비밀번호는 6자 이상이어야 합니다.";
+          break;
+        case 'auth/user-disabled':
+          errorMessage = "이 계정은 비활성화되었습니다.";
+          break;
+        case 'auth/popup-closed-by-user':
+          errorMessage = `${action}이 취소되었습니다.`;
+          break;
+        case 'auth/unauthorized-domain':
+          errorMessage = "이 웹사이트의 도메인은 인증이 승인되지 않았습니다.";
+          break;
+        default:
+          errorMessage = error.message || `${action} 중 오류가 발생했습니다.`;
+      }
+    }
+    
+    toast({
+      title: `${action} 실패`,
+      description: errorMessage,
+      variant: "destructive",
+    });
+  };
+
+  const renderLoginForm = () => (
+    <Form {...loginForm}>
+      <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-4">
+        <FormField
+          control={loginForm.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>이메일</FormLabel>
+              <FormControl>
+                <Input 
+                  placeholder="m@example.com" 
+                  {...field} 
+                  autoComplete="email"
+                  disabled={isSubmitting || isGoogleSubmitting}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={loginForm.control}
+          name="password"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>비밀번호</FormLabel>
+              <FormControl>
+                <div className="relative">
+                  <Input 
+                    type={showLoginPassword ? "text" : "password"} 
+                    placeholder="••••••••" 
+                    {...field} 
+                    autoComplete="current-password"
+                    disabled={isSubmitting || isGoogleSubmitting}
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute inset-y-0 right-0 flex items-center justify-center px-3 text-muted-foreground hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
+                    onClick={() => setShowLoginPassword((prev) => !prev)}
+                    disabled={isSubmitting || isGoogleSubmitting}
+                    aria-label={showLoginPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                  >
+                    {showLoginPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
+                  </Button>
+                </div>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <Button 
+          type="submit" 
+          className="w-full" 
+          disabled={isSubmitting || isGoogleSubmitting}
+        >
+          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          로그인
+        </Button>
+      </form>
+    </Form>
+  );
+
+  const renderSignupForm = () => (
+    <Form {...signupForm}>
+      <form onSubmit={signupForm.handleSubmit(onSignup)} className="space-y-4">
+        <FormField
+          control={signupForm.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>이메일</FormLabel>
+              <FormControl>
+                <Input 
+                  placeholder="m@example.com" 
+                  {...field} 
+                  autoComplete="email"
+                  disabled={isSubmitting || isGoogleSubmitting}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={signupForm.control}
+          name="password"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>비밀번호</FormLabel>
+              <FormControl>
+                <div className="relative">
+                  <Input 
+                    type={showSignupPassword ? "text" : "password"} 
+                    placeholder="••••••••" 
+                    {...field} 
+                    autoComplete="new-password"
+                    disabled={isSubmitting || isGoogleSubmitting}
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute inset-y-0 right-0 flex items-center justify-center px-3 text-muted-foreground hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
+                    onClick={() => setShowSignupPassword((prev) => !prev)}
+                    disabled={isSubmitting || isGoogleSubmitting}
+                    aria-label={showSignupPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                  >
+                    {showSignupPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
+                  </Button>
+                </div>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={signupForm.control}
+          name="confirmPassword"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>비밀번호 확인</FormLabel>
+              <FormControl>
+                <div className="relative">
+                  <Input 
+                    type={showConfirmPassword ? "text" : "password"} 
+                    placeholder="••••••••" 
+                    {...field} 
+                    autoComplete="new-password"
+                    disabled={isSubmitting || isGoogleSubmitting}
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute inset-y-0 right-0 flex items-center justify-center px-3 text-muted-foreground hover:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    disabled={isSubmitting || isGoogleSubmitting}
+                    aria-label={showConfirmPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
+                  </Button>
+                </div>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <Button 
+          type="submit" 
+          className="w-full" 
+          disabled={isSubmitting || isGoogleSubmitting}
+        >
+          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          회원가입
+        </Button>
+      </form>
+    </Form>
+  );
+
   return (
-    <Card className="w-full max-w-sm shadow-xl">
-      <div className="flex justify-center py-6">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, ease: "easeInOut" }}
+      className="flex flex-col items-center w-full max-w-sm -mt-24"
+    >
+      {/* 로고 */}
+      <div className="w-full flex justify-center mb-6">
         <Image 
           src="/adpopcorn-logo.png"
           alt="Adpopcorn Logo" 
-          width={180} 
-          height={48} 
-          priority 
+          width={200}
+          height={60}
+          priority
+          className="h-auto w-48"
         />
       </div>
-      <CardHeader>
-        <CardTitle className="text-2xl">로그인</CardTitle>
-        <CardDescription>
-          {/* 계정에 로그인하거나 Google을 사용하려면 아래에 이메일을 입력하세요. */}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>이메일</FormLabel>
-                  <FormControl>
-                    <Input placeholder="m@example.com" {...field} autoComplete="email" disabled={isSubmitting || isGoogleSubmitting} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="password"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>비밀번호</FormLabel>
-                  <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} autoComplete="current-password" disabled={isSubmitting || isGoogleSubmitting}/>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <Button type="submit" className="w-full" disabled={isSubmitting || isGoogleSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              로그인
-            </Button>
-          </form>
-        </Form>
-        <div className="relative my-4">
-          <Separator className="absolute left-0 top-1/2 -translate-y-1/2 w-full" />
-          <span className="relative bg-card px-2 text-sm text-muted-foreground flex justify-center">
-            또는
-          </span>
-        </div>
-        <Button variant="outline" className="w-full" onClick={handleGoogleLogin} disabled={isSubmitting || isGoogleSubmitting}>
-          {isGoogleSubmitting ? (
-            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-          ) : (
-            <GoogleIcon />
+      
+      <div className="relative w-full min-h-[400px]">
+        {/* 로그인 폼 */}
+        <div 
+          className={cn(
+            "absolute inset-0 w-full transition-all duration-300 ease-in-out motion-reduce:transition-none",
+            mode === 'login' 
+              ? 'opacity-100 translate-x-0 z-10' 
+              : 'opacity-0 translate-x-4 pointer-events-none'
           )}
-          {isGoogleSubmitting ? '로그인 중...' : 'Google로 로그인'}
-        </Button>
-      </CardContent>
-      <CardFooter className="flex-col items-start">
-        <div className="mt-4 text-center text-sm w-full">
-          계정이 없으신가요?{" "}
-          <Link href="/register" className="underline text-blue-600 hover:text-blue-500">
-            회원가입
-          </Link>
+          role="tabpanel"
+          aria-labelledby="login-tab"
+        >
+          <Card className="w-full shadow-lg hover:shadow-xl transition-shadow">
+            <CardHeader>
+              <CardTitle className="text-2xl">로그인</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {renderLoginForm()}
+              
+              <div className="relative my-4">
+                <Separator className="absolute left-0 top-1/2 -translate-y-1/2 w-full" />
+                <span className="relative bg-card px-2 text-sm text-muted-foreground flex justify-center">
+                  또는
+                </span>
+              </div>
+              
+              <Button 
+                variant="outline" 
+                className="w-full" 
+                onClick={handleGoogleAuth}
+                disabled={isSubmitting || isGoogleSubmitting}
+              >
+                {isGoogleSubmitting ? (
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                ) : (
+                  <GoogleIcon />
+                )}
+                Google로 로그인
+              </Button>
+            </CardContent>
+            <CardFooter className="justify-center text-sm pt-2">
+              <span className="text-muted-foreground">계정이 없으신가요? </span>
+              <Button 
+                variant="link" 
+                className="p-0 h-auto font-semibold text-blue-600 ml-2" 
+                onClick={() => handleModeSwitch('signup')}
+                disabled={isTransitioning}
+              >
+                회원가입
+              </Button>
+            </CardFooter>
+          </Card>
         </div>
-      </CardFooter>
-    </Card>
+
+        {/* 회원가입 폼 */}
+        <div 
+          className={cn(
+            "absolute inset-0 w-full transition-all duration-300 ease-in-out motion-reduce:transition-none",
+            mode === 'signup' 
+              ? 'opacity-100 translate-x-0 z-10' 
+              : 'opacity-0 -translate-x-4 pointer-events-none'
+          )}
+          role="tabpanel"
+          aria-labelledby="signup-tab"
+        >
+          <Card className="w-full shadow-lg hover:shadow-xl transition-shadow">
+            <CardHeader>
+              <CardTitle className="text-2xl">회원가입</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {renderSignupForm()}
+            </CardContent>
+            <CardFooter className="justify-center text-sm pt-2">
+              <span className="text-muted-foreground">이미 계정이 있으신가요? </span>
+              <Button 
+                variant="link" 
+                className="p-0 h-auto font-semibold text-blue-600 ml-1" 
+                onClick={() => handleModeSwitch('login')}
+                disabled={isTransitioning}
+              >
+                로그인
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
+      </div>
+    </motion.div>
   );
 }

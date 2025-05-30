@@ -50,9 +50,16 @@ export const FormSubmissionSchema = z.object({
   userId: z.string().optional(),
 });
 
-export const LoginSchema = z.object({
-  email: z.string().email({ message: "Invalid email address" }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters" }),
+export const SignupSchema = z.object({
+  name: z.string().min(2, { message: "이름은 2글자 이상이어야 합니다." }),
+  email: z.string().email({
+    message: "올바른 이메일 형식을 입력해주세요.",
+  }),
+  password: z.string().min(8, { message: "비밀번호는 8자 이상이어야 합니다." }),
+  confirmPassword: z.string().min(8, { message: "비밀번호 확인을 입력해주세요." }),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "비밀번호가 일치하지 않습니다.",
+  path: ["confirmPassword"], // 에러 메시지를 confirmPassword 필드에 표시
 });
 
 export const RegisterSchema = z.object({
@@ -63,6 +70,13 @@ export const RegisterSchema = z.object({
 }).refine(data => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"], // path to field that gets the error
+});
+
+export const LoginSchema = z.object({
+  email: z.string().email({
+    message: "올바른 이메일 형식을 입력해주세요.",
+  }),
+  password: z.string().min(1, { message: "비밀번호를 입력해주세요." }),
 });
 
 // Schema for AI field suggestions input

@@ -448,7 +448,7 @@ export default function DashboardPage() {
           <div>
             <CardTitle>문의 내역</CardTitle>
             <CardDescription>
-              {isAdmin ? "모든 사용자의 문의 내역입니다." : "제출하신 문의 내역을 확인하고 관리하세요."}
+              {isAdmin ? "모든 사용자의 문의 내역입니다." : null}
             </CardDescription>
           </div>
           <Button onClick={() => setIsInquiryModalOpen(true)} className="flex items-center gap-2 w-full md:w-auto">

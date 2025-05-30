@@ -490,7 +490,7 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
         }}
       >
         <DialogHeader className="p-6 pb-2 text-center">
-          <DialogTitle>문의 접수</DialogTitle>
+          <DialogTitle className="text-2xl">문의 접수</DialogTitle>
           {isProcessing && (
             <div className="flex items-center justify-center gap-2 text-sm text-primary pt-3">
               <Loader2 className="h-5 w-5 animate-spin" />

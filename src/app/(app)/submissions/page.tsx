@@ -118,9 +118,6 @@ export default function SubmissionsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Form Submissions</h1>
-        <p className="text-muted-foreground">
-          View and manage all data submitted through your forms.
-        </p>
       </div>
 
       <div className="flex flex-col sm:flex-row items-center gap-4">
