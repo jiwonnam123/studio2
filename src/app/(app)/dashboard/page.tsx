@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, ListChecks, MoreHorizontal, CheckCircle, XCircle, Clock, Loader2, ChevronLeft, ChevronRight, FileText, FilterX } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,6 +45,7 @@ export default function DashboardPage() {
   const [isInquiryModalOpen, setIsInquiryModalOpen] = useState(false);
   
   const [currentPage, setCurrentPage] = useState(1);
+  const [animationDirection, setAnimationDirection] = useState<'next' | 'prev'>('next');
 
   // States for search functionality
   const [searchColumn, setSearchColumn] = useState('all');
@@ -332,10 +333,12 @@ export default function DashboardPage() {
   };
 
   const handleNextPageLocal = () => {
+    setAnimationDirection('next');
     setCurrentPage((prev) => Math.min(prev + 1, totalPages || 1));
   };
 
   const handlePreviousPageLocal = () => {
+    setAnimationDirection('prev');
     setCurrentPage((prev) => Math.max(prev - 1, 1));
   };
 
@@ -343,6 +346,23 @@ export default function DashboardPage() {
   const mainContentVariants = {
     hidden: { opacity: 0, y: 50 },
     visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
+  };
+
+  const tableAnimationVariants = {
+    initial: (direction: 'next' | 'prev') => ({
+      x: direction === 'next' ? '30px' : '-30px',
+      opacity: 0,
+    }),
+    animate: {
+      x: 0,
+      opacity: 1,
+      transition: { duration: 0.2, ease: 'easeInOut' },
+    },
+    exit: (direction: 'next' | 'prev') => ({
+      x: direction === 'next' ? '-30px' : '30px',
+      opacity: 0,
+      transition: { duration: 0.2, ease: 'easeInOut' },
+    }),
   };
 
   if (!mounted) {
@@ -519,92 +539,113 @@ export default function DashboardPage() {
               </div>
 
               {/* Table for Submitted Inquiries */}
-              {filteredDataRows.length === 0 ? (
-                <div className="text-center py-12 text-muted-foreground">
-                  <FilterX className="mx-auto h-12 w-12 mb-4" />
-                  <p className="text-lg font-semibold">검색 결과가 없습니다.</p>
-                  <p className="text-sm">다른 검색어나 필터를 시도해 보세요.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        {isAdmin ? (
-                          <TableHead className="w-[30px] px-1 py-2 text-center">
-                            <Checkbox 
-                              checked={isAllOnPageSelected || (isSomeOnPageSelected ? "indeterminate" : false)} 
-                              onCheckedChange={handleSelectAllOnPage} 
-                              aria-label="이 페이지의 모든 항목 선택"
-                            />
-                          </TableHead>
-                        ) : null}
-                        <TableHead className="w-[100px] py-2 px-3 text-center">접수일</TableHead>
-                        <TableHead className="min-w-[120px] max-w-[150px] py-2 px-3 text-center">캠페인 키</TableHead>
-                        <TableHead className="min-w-[150px] max-w-[200px] py-2 px-3 text-center">캠페인 명</TableHead>
-                        <TableHead className="min-w-[120px] max-w-[150px] py-2 px-3 text-center">ADID/IDFA</TableHead>
-                        <TableHead className="w-[100px] py-2 px-3 text-center">이름</TableHead>
-                        <TableHead className="w-[110px] py-2 px-3 text-center">연락처</TableHead>
-                        <TableHead className="flex-1 min-w-[150px] py-2 px-3 text-center">비고</TableHead>
-                        <TableHead className="w-[120px] py-2 px-3 text-center">처리 상태</TableHead>
-                        {isAdmin ? (<TableHead className="w-[70px] py-2 px-3 text-center">편집</TableHead>) : null}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {paginatedDataRows.map((row) => (
-                        <TableRow key={row.key} className="text-xs hover:bg-muted/50" data-state={selectedRows.has(row.key) ? "selected" : ""}>
-                          {isAdmin ? (
-                            <TableCell className="px-1 py-1 text-center">
-                              <Checkbox 
-                                checked={selectedRows.has(row.key)} 
-                                onCheckedChange={(checked) => handleRowSelectionChange(row, checked)} 
-                                aria-labelledby={`label-select-row-${row.key}`}
-                              />
-                              <span id={`label-select-row-${row.key}`} className="sr-only">캠페인 키 ${row.campaignKey} 행 선택</span>
-                            </TableCell>
-                          ) : null}
-                          <TableCell className="font-medium py-2 px-3 text-center">{row.originalInquirySubmittedAt ? format(new Date(row.originalInquirySubmittedAt), "yyyy-MM-dd") : 'N/A'}</TableCell>
-                          <TableCell className="py-2 px-3 text-center truncate max-w-[150px]">{row.campaignKey}</TableCell>
-                          <TableCell className="py-2 px-3 text-center truncate max-w-[200px]">{row.campaignName}</TableCell>
-                          <TableCell className="py-2 px-3 text-center truncate max-w-[150px]">{row.adidOrIdfa}</TableCell>
-                          <TableCell className="py-2 px-3 text-center truncate max-w-[100px]">{row.userName}</TableCell>
-                          <TableCell className="py-2 px-3 text-center truncate max-w-[110px]">{row.contact}</TableCell>
-                          <TableCell className="py-2 px-3 text-center whitespace-normal break-words">{row.remarks}</TableCell>
-                          <TableCell className="py-2 px-3 text-center">{renderStatusBadge(row.status)}</TableCell>
-                          {isAdmin ? (
-                            <TableCell className="py-2 px-3 text-center">
-                              <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                      <Button variant="ghost" size="icon" className="h-7 w-7">
-                                          <MoreHorizontal className="h-4 w-4" />
-                                      </Button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end">
-                                      <DropdownMenuLabel>상태 업데이트</DropdownMenuLabel>
-                                      <DropdownMenuSeparator />
-                                      <DropdownMenuRadioGroup
-                                          value={row.status}
-                                          onValueChange={(newStatus) => handleIndividualStatusChange(row.originalInquiryId, row.originalDataRowIndex, newStatus)}
-                                      >
-                                          {STATUS_OPTIONS_KOREAN.map(statusOption => (
-                                              <DropdownMenuRadioItem key={statusOption} value={statusOption}>
-                                                  {statusOption}
-                                              </DropdownMenuRadioItem>
-                                          ))}
-                                      </DropdownMenuRadioGroup>
-                                  </DropdownMenuContent>
-                              </DropdownMenu>
-                            </TableCell>
-                          ) : null}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                    <TableCaption>
-                        {/* Removed caption text */}
-                    </TableCaption>
-                  </Table>
-                </div>
-              )}
+              <div className="relative">
+                <AnimatePresence mode="wait" custom={animationDirection}>
+                  {paginatedDataRows.length === 0 && !isLoadingInquiries && (!activeSearchTerm || filteredDataRows.length === 0) ? (
+                    <motion.div
+                      key="no-results"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      transition={{ duration: 0.3 }}
+                      className="text-center py-12 text-muted-foreground absolute w-full"
+                    >
+                      <FilterX className="mx-auto h-12 w-12 mb-4" />
+                      <p className="text-lg font-semibold">검색 결과가 없습니다.</p>
+                      <p className="text-sm">다른 검색어나 필터를 시도해 보세요.</p>
+                    </motion.div>
+                  ) : paginatedDataRows.length > 0 ? (
+                    <motion.div
+                      key={`table-${currentPage}`}
+                      custom={animationDirection}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                      variants={tableAnimationVariants}
+                      className="overflow-x-auto"
+                    >
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            {isAdmin ? (
+                              <TableHead className="w-[30px] px-1 py-2 text-center">
+                                <Checkbox 
+                                  checked={isAllOnPageSelected || (isSomeOnPageSelected ? "indeterminate" : false)} 
+                                  onCheckedChange={handleSelectAllOnPage} 
+                                  aria-label="이 페이지의 모든 항목 선택"
+                                />
+                              </TableHead>
+                            ) : null}
+                            <TableHead className="w-[100px] py-2 px-3 text-center">접수일</TableHead>
+                            <TableHead className="min-w-[120px] max-w-[150px] py-2 px-3 text-center">캠페인 키</TableHead>
+                            <TableHead className="min-w-[150px] max-w-[200px] py-2 px-3 text-center">캠페인 명</TableHead>
+                            <TableHead className="min-w-[120px] max-w-[150px] py-2 px-3 text-center">ADID/IDFA</TableHead>
+                            <TableHead className="w-[100px] py-2 px-3 text-center">이름</TableHead>
+                            <TableHead className="w-[110px] py-2 px-3 text-center">연락처</TableHead>
+                            <TableHead className="flex-1 min-w-[150px] py-2 px-3 text-center">비고</TableHead>
+                            <TableHead className="w-[120px] py-2 px-3 text-center">처리 상태</TableHead>
+                            {isAdmin ? (<TableHead className="w-[70px] py-2 px-3 text-center">편집</TableHead>) : null}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {paginatedDataRows.map((row) => (
+                            <TableRow key={row.key} className="text-xs hover:bg-muted/50" data-state={selectedRows.has(row.key) ? "selected" : ""}>
+                              {isAdmin ? (
+                                <TableCell className="px-1 py-1 text-center">
+                                  <Checkbox 
+                                    checked={selectedRows.has(row.key)} 
+                                    onCheckedChange={(checked) => handleRowSelectionChange(row, checked)} 
+                                    aria-labelledby={`label-select-row-${row.key}`}
+                                  />
+                                  <span id={`label-select-row-${row.key}`} className="sr-only">캠페인 키 ${row.campaignKey} 행 선택</span>
+                                </TableCell>
+                              ) : null}
+                              <TableCell className="font-medium py-2 px-3 text-center">{row.originalInquirySubmittedAt ? format(new Date(row.originalInquirySubmittedAt), "yyyy-MM-dd") : 'N/A'}</TableCell>
+                              <TableCell className="py-2 px-3 text-center truncate max-w-[150px]">{row.campaignKey}</TableCell>
+                              <TableCell className="py-2 px-3 text-center truncate max-w-[200px]">{row.campaignName}</TableCell>
+                              <TableCell className="py-2 px-3 text-center truncate max-w-[150px]">{row.adidOrIdfa}</TableCell>
+                              <TableCell className="py-2 px-3 text-center truncate max-w-[100px]">{row.userName}</TableCell>
+                              <TableCell className="py-2 px-3 text-center truncate max-w-[110px]">{row.contact}</TableCell>
+                              <TableCell className="py-2 px-3 text-center whitespace-normal break-words">{row.remarks}</TableCell>
+                              <TableCell className="py-2 px-3 text-center">{renderStatusBadge(row.status)}</TableCell>
+                              {isAdmin ? (
+                                <TableCell className="py-2 px-3 text-center">
+                                  <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                          <Button variant="ghost" size="icon" className="h-7 w-7">
+                                              <MoreHorizontal className="h-4 w-4" />
+                                          </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="end">
+                                          <DropdownMenuLabel>상태 업데이트</DropdownMenuLabel>
+                                          <DropdownMenuSeparator />
+                                          <DropdownMenuRadioGroup
+                                              value={row.status}
+                                              onValueChange={(newStatus) => handleIndividualStatusChange(row.originalInquiryId, row.originalDataRowIndex, newStatus)}
+                                          >
+                                              {STATUS_OPTIONS_KOREAN.map(statusOption => (
+                                                  <DropdownMenuRadioItem key={statusOption} value={statusOption}>
+                                                      {statusOption}
+                                                  </DropdownMenuRadioItem>
+                                              ))}
+                                          </DropdownMenuRadioGroup>
+                                      </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </TableCell>
+                              ) : null}
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                        <TableCaption>
+                            {/* Removed caption text */}
+                        </TableCaption>
+                      </Table>
+                    </motion.div>
+                  ) : (
+                    <div key="placeholder" className="min-h-[300px]"></div>
+                  )}
+                </AnimatePresence>
+              </div>
 
               {/* Pagination (conditionally rendered) */}
               {totalPages > 1 && (

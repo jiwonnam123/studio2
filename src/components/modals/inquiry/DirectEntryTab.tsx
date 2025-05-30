@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 import { RotateCcw } from 'lucide-react';
 import { useToast as useUiToast } from '@/hooks/use-toast';
 
-const INITIAL_NUM_ROWS = 20;
+const INITIAL_NUM_ROWS = 10;
 const NUM_COLS = 6;
 const MAX_HISTORY_ENTRIES = 30;
 
@@ -341,13 +341,18 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
           >
             <thead className="bg-muted/50 sticky top-0 z-10">
               <tr>
-                <th className="sticky left-0 z-20 w-12 px-2 py-2 text-center font-semibold text-muted-foreground bg-muted/50 border-r border-border">
+                <th className="sticky left-0 z-20 w-10 px-1 py-2 text-center font-semibold text-muted-foreground bg-muted/50 border-r border-border">
                   #
                 </th>
                 {customColumnHeaders.map((header, colIndex) => (
                   <th
                     key={`header-${colIndex}`}
-                    className="px-2 py-2 text-center font-semibold text-muted-foreground whitespace-nowrap"
+                    className={cn(
+                      "px-2 py-2 text-center font-semibold text-muted-foreground whitespace-nowrap",
+                      colIndex === 0 && "w-24",
+                      colIndex === 3 && "w-32",
+                      colIndex === 4 && "w-40"
+                    )}
                   >
                     {header}
                   </th>
@@ -357,7 +362,7 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
             <tbody className="divide-y divide-border">
               {gridData.map((row, rowIndex) => (
                 <tr key={`row-${rowIndex}`} className={cn(rowIndex % 2 === 1 ? "bg-muted/20" : "")}>
-                  <td className="sticky left-0 z-10 w-12 px-2 py-1 text-center font-medium text-muted-foreground bg-muted/50 border-r border-border">
+                  <td className="sticky left-0 z-10 w-10 px-1 py-1 text-center font-medium text-muted-foreground bg-muted/50 border-r border-border">
                     {rowIndex + 1}
                   </td>
                   {row.map((cell, colIndex) => (
@@ -380,7 +385,7 @@ export const DirectEntryTab = forwardRef<DirectEntryTabHandles>((_props, ref) =>
                             e.stopPropagation(); 
                         }}
                         className={cn(
-                          "w-full h-full px-2 py-1.5 rounded-none focus:ring-1 focus:ring-primary focus:z-30 focus:relative focus:shadow-md",
+                          "w-full h-full px-2 py-1 rounded-none focus:ring-1 focus:ring-primary focus:z-30 focus:relative focus:shadow-md",
                           "border-2 border-transparent" 
                         )}
                         aria-label={`${customColumnHeaders[colIndex]}, 행 ${rowIndex + 1}`}

@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import type { z } from "zod";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import Image from 'next/image';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -134,10 +135,19 @@ export function LoginForm() {
 
   return (
     <Card className="w-full max-w-sm shadow-xl">
+      <div className="flex justify-center py-6">
+        <Image 
+          src="/adpopcorn-logo.png"
+          alt="Adpopcorn Logo" 
+          width={180} 
+          height={48} 
+          priority 
+        />
+      </div>
       <CardHeader>
         <CardTitle className="text-2xl">로그인</CardTitle>
         <CardDescription>
-          계정에 로그인하거나 Google을 사용하려면 아래에 이메일을 입력하세요.
+          {/* 계정에 로그인하거나 Google을 사용하려면 아래에 이메일을 입력하세요. */}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -193,7 +203,7 @@ export function LoginForm() {
       <CardFooter className="flex-col items-start">
         <div className="mt-4 text-center text-sm w-full">
           계정이 없으신가요?{" "}
-          <Link href="/register" className="underline text-primary hover:text-primary/80">
+          <Link href="/register" className="underline text-blue-600 hover:text-blue-500">
             회원가입
           </Link>
         </div>

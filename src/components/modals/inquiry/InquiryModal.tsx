@@ -2,17 +2,18 @@
 
 import type React from 'react';
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import Image from 'next/image';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import * as TabsPrimitive from '@radix-ui/react-tabs';
+import { cn } from '@/lib/utils';
 import { ExcelUploadTab } from './ExcelUploadTab';
 import { DirectEntryTab, type DirectEntryTabHandles } from './DirectEntryTab';
 import type { UploadedFile, ExcelValidationResult, WorkerParseResponse, SubmittedInquiryDataRow } from '@/types/inquiry';
@@ -22,7 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { firestore } from '@/lib/firebase';
 import { collection, addDoc, serverTimestamp, type DocumentData } from 'firebase/firestore';
 
-const PROCESSING_TIMEOUT_MS = 5000; // 5초로 단축
+const PROCESSING_TIMEOUT_MS = 5000;
 
 interface InquiryModalProps {
   open: boolean;
@@ -30,6 +31,8 @@ interface InquiryModalProps {
 }
 
 type ActiveTab = 'excel' | 'direct';
+
+const MotionTabsPrimitiveContent = motion(TabsPrimitive.Content);
 
 export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
   const { toast: actualUiToast } = useUiToast();
@@ -40,7 +43,6 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
     console.warn("Toast function is currently disabled or not ready. Options:", options);
     return { id: 'fallback-toast', dismiss: () => {}, update: (props: any) => {} };
   }, [actualUiToast]);
-
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('excel');
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null);
@@ -471,27 +473,31 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
     excelHasData: excelValidationState?.hasData,
   });
 
+  const tabContentVariants = {
+    initial: { opacity: 0, x: 10 },
+    animate: { opacity: 1, x: 0, transition: { duration: 0.2, ease: "easeInOut" } },
+    exit: { opacity: 0, x: -10, transition: { duration: 0.15, ease: "easeInOut" } },
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleModalOpenChange}>
-      <DialogContent
-        className="max-w-[1000px] w-[95vw] sm:w-[90vw] md:w-[1000px] p-0 data-[state=open]:h-auto sm:h-[calc(100vh-100px)] sm:max-h-[700px] flex flex-col"
+      <DialogContent 
+        className="max-w-[1320px] w-[95vw] sm:w-[90vw] md:w-[1320px] p-0 data-[state=open]:h-auto sm:h-[840px] sm:max-h-[840px] flex flex-col"
         onInteractOutside={(event) => {
           if (isProcessing) {
-            console.log("[InquiryModal DialogContent] onInteractOutside prevented due to isProcessing.");
             event.preventDefault();
           }
         }}
       >
         <DialogHeader className="p-6 pb-2 text-center">
           <DialogTitle>문의 접수</DialogTitle>
-           {isProcessing && ( // Display this loader when isProcessing is true, regardless of activeTab
+          {isProcessing && (
             <div className="flex items-center justify-center gap-2 text-sm text-primary pt-3">
               <Loader2 className="h-5 w-5 animate-spin" />
-               파일 처리 중... {uploadedFile?.file ? `(${(uploadedFile.file.size / 1024).toFixed(1)}KB)` : ''}
+              파일 처리 중... {uploadedFile?.file ? `(${(uploadedFile.file.size / 1024).toFixed(1)}KB)` : ''}
             </div>
           )}
-           {!isProcessing && excelValidationState && activeTab === 'excel' && (
+          {!isProcessing && excelValidationState && activeTab === 'excel' && (
             <div className="text-xs text-muted-foreground pt-2 space-y-0.5 text-center">
               {excelValidationState.fileSize !== undefined && ( <p>파일 크기: {(excelValidationState.fileSize / 1024).toFixed(1)}KB</p> )}
               {excelValidationState.processingTime !== undefined && ( <p>처리 시간: {excelValidationState.processingTime.toFixed(0)}ms</p> )}
@@ -506,18 +512,48 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
             <TabsTrigger value="direct" disabled={isSubmitting || (isProcessing && activeTab === 'excel')}>직접 입력</TabsTrigger>
           </TabsList>
 
-          <div className="flex-grow overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent">
-            <TabsContent value="excel" className="mt-0">
-              <ExcelUploadTab
-                onFileChange={handleFileChange}
-                isProcessingGlobal={isProcessing}
-                uploadedFileState={uploadedFile}
-                excelValidationState={excelValidationState}
-              />
-            </TabsContent>
-            <TabsContent value="direct" className="mt-0 h-full">
-              <DirectEntryTab ref={directEntryTabRef} />
-            </TabsContent>
+          <div className="flex-grow overflow-y-auto overflow-x-hidden pr-1 scrollbar-thin scrollbar-thumb-muted-foreground/30 scrollbar-track-transparent min-h-[450px]">
+            <AnimatePresence mode="wait">
+              {activeTab === 'excel' && (
+                <MotionTabsPrimitiveContent
+                  key="excel-tab-content"
+                  value="excel"
+                  variants={tabContentVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  className={cn(
+                    "mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    "h-full"
+                  )}
+                  forceMount
+                >
+                  <ExcelUploadTab
+                    onFileChange={handleFileChange}
+                    isProcessingGlobal={isProcessing}
+                    uploadedFileState={uploadedFile}
+                    excelValidationState={excelValidationState}
+                  />
+                </MotionTabsPrimitiveContent>
+              )}
+              {activeTab === 'direct' && (
+                <MotionTabsPrimitiveContent
+                  key="direct-tab-content"
+                  value="direct"
+                  variants={tabContentVariants}
+                  initial="initial"
+                  animate="animate"
+                  exit="exit"
+                  className={cn(
+                    "mt-2 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    "h-full"
+                  )}
+                  forceMount
+                >
+                  <DirectEntryTab ref={directEntryTabRef} />
+                </MotionTabsPrimitiveContent>
+              )}
+            </AnimatePresence>
           </div>
         </Tabs>
 

@@ -1,4 +1,3 @@
-
 "use client";
 
 import type React from 'react';
@@ -127,13 +126,13 @@ export function FileUploadZone({ onFileAccepted, disabled = false }: FileUploadZ
         </>
       ) : (
         <>
-          <UploadCloud className={cn("w-10 h-10 mb-3", isDragActive ? "text-primary" : "text-muted-foreground")} />
+          <UploadCloud className={cn("w-10 h-10 mb-3 animate-float", isDragActive ? "text-primary" : "text-muted-foreground")} />
           {isDragActive ? (
             <p className="text-lg font-semibold text-primary">여기에 파일을 드롭하세요...</p>
           ) : (
             <>
               <p className="mb-2 text-sm text-muted-foreground">
-                <span className="font-semibold text-primary">클릭하여 업로드</span> 또는 드래그 앤 드롭하세요
+                <span className="font-semibold text-foreground">클릭하여 업로드</span> 또는 드래그 앤 드롭하세요
               </p>
               <p className="text-xs text-muted-foreground">XLSX, XLS, 또는 CSV (최대 {MAX_FILE_SIZE_MB}MB)</p>
             </>
