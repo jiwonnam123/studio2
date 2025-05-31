@@ -27,7 +27,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   if (isLoading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background">
+      <div className="flex h-screen w-screen items-center justify-center bg-gradient-to-br from-slate-50 to-sky-100">
         <motion.div // Optional: Animate the loader itself
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -42,7 +42,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   if (isAuthenticated) { // This case might not need complex animation as it's a redirect state
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background">
+      <div className="flex h-screen w-screen items-center justify-center bg-gradient-to-br from-slate-50 to-sky-100">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
         <p className="ml-4 text-lg text-foreground">리디렉션 중...</p>
       </div>
@@ -50,23 +50,23 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-sky-100 p-4">
       {/* Wrapper to provide size and relative positioning context for animations */}
       <div className="relative w-full max-w-md" style={wrapperStyle}>
         <AnimatePresence mode="wait">
           <motion.div
             key={pathname}
-            initial={{ opacity: 0, y: 20, position: 'absolute', top: 0, left: 0, width: '100%' }}
-            animate={{ opacity: 1, y: 0, position: 'absolute', top: 0, left: 0, width: '100%' }}
-            exit={{ opacity: 0, y: -20, position: 'absolute', top: 0, left: 0, width: '100%' }}
-            transition={{ duration: 0.3 }}
+            initial={{ opacity: 0, y: 30, scale: 0.97, position: 'absolute', top: 0, left: 0, width: '100%' }}
+            animate={{ opacity: 1, y: 0, scale: 1, position: 'absolute', top: 0, left: 0, width: '100%' }}
+            exit={{ opacity: 0, y: -30, scale: 0.97, position: 'absolute', top: 0, left: 0, width: '100%' }}
+            transition={{ duration: 0.6, ease: [0.32, 0.72, 0, 1] }}
             className="flex items-center justify-center" // Centers the child Card (max-w-sm) within this motion.div
           >
             {children} {/* This will be LoginForm or RegisterForm (Card component) */}
           </motion.div>
         </AnimatePresence>
       </div>
-      <footer className="absolute bottom-8 text-center text-sm text-muted-foreground">
+      <footer className="absolute bottom-8 text-center text-sm text-slate-600">
         © {new Date().getFullYear()} Adpopcorn. 모든 권리 보유.
       </footer>
     </div>

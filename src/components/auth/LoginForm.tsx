@@ -8,7 +8,7 @@ import Image from 'next/image';
 import { useState, useCallback } from "react";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +19,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+import { Input as UiInput } from "@/components/ui/input"; // Renamed to avoid conflict
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { LoginSchema, SignupSchema } from "@/lib/schemas";
 import { useAuth } from "@/contexts/AuthContext";
@@ -69,13 +69,11 @@ export function LoginForm() {
   const handleModeSwitch = (newMode: AuthMode) => {
     if (mode === newMode || isTransitioning) return;
     
-    setIsTransitioning(true);
-    
-    // 150ms 후에 모드 전환
-    setTimeout(() => {
-      setMode(newMode);
-      setIsTransitioning(false);
-    }, 150);
+    // setIsTransitioning(true); // isTransitioning might not be needed with AnimatePresence mode="wait" or careful variant timing
+    setMode(newMode);
+    // It's often better to let animation complete events handle isTransitioning state
+    // For now, let's see how it behaves without manual isTransitioning and timeout.
+    // If glitches occur, we can re-add or use onAnimationComplete.
   };
 
   const onLogin = async (data: z.infer<typeof LoginSchema>) => {
@@ -177,7 +175,7 @@ export function LoginForm() {
 
   const renderLoginForm = () => (
     <Form {...loginForm}>
-      <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-4">
+      <form onSubmit={loginForm.handleSubmit(onLogin)} className="space-y-6">
         <FormField
           control={loginForm.control}
           name="email"
@@ -190,6 +188,8 @@ export function LoginForm() {
                   {...field} 
                   autoComplete="email"
                   disabled={isSubmitting || isGoogleSubmitting}
+                  className="rounded-md focus:border-primary transition-colors duration-200"
+                  whileFocus={{ scale: 1.02 }}
                 />
               </FormControl>
               <FormMessage />
@@ -210,7 +210,8 @@ export function LoginForm() {
                     {...field} 
                     autoComplete="current-password"
                     disabled={isSubmitting || isGoogleSubmitting}
-                    className="pr-10"
+                    className="pr-10 rounded-md focus:border-primary transition-colors duration-200"
+                    whileFocus={{ scale: 1.02 }}
                   />
                   <Button
                     type="button"
@@ -235,11 +236,14 @@ export function LoginForm() {
         />
         <Button 
           type="submit" 
-          className="w-full" 
+          className="w-full hover:scale-105 transform transition-transform duration-200"
           disabled={isSubmitting || isGoogleSubmitting}
+          asChild // Required for motion props on Button if it's not a motion component itself
         >
-          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          로그인
+          <motion.button whileTap={{ scale: 0.98 }}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            로그인
+          </motion.button>
         </Button>
       </form>
     </Form>
@@ -247,7 +251,7 @@ export function LoginForm() {
 
   const renderSignupForm = () => (
     <Form {...signupForm}>
-      <form onSubmit={signupForm.handleSubmit(onSignup)} className="space-y-4">
+      <form onSubmit={signupForm.handleSubmit(onSignup)} className="space-y-6">
         <FormField
           control={signupForm.control}
           name="email"
@@ -260,6 +264,8 @@ export function LoginForm() {
                   {...field} 
                   autoComplete="email"
                   disabled={isSubmitting || isGoogleSubmitting}
+                  className="rounded-md focus:border-primary transition-colors duration-200"
+                  whileFocus={{ scale: 1.02 }}
                 />
               </FormControl>
               <FormMessage />
@@ -280,7 +286,8 @@ export function LoginForm() {
                     {...field} 
                     autoComplete="new-password"
                     disabled={isSubmitting || isGoogleSubmitting}
-                    className="pr-10"
+                    className="pr-10 rounded-md focus:border-primary transition-colors duration-200"
+                    whileFocus={{ scale: 1.02 }}
                   />
                   <Button
                     type="button"
@@ -317,7 +324,8 @@ export function LoginForm() {
                     {...field} 
                     autoComplete="new-password"
                     disabled={isSubmitting || isGoogleSubmitting}
-                    className="pr-10"
+                    className="pr-10 rounded-md focus:border-primary transition-colors duration-200"
+                    whileFocus={{ scale: 1.02 }}
                   />
                   <Button
                     type="button"
@@ -342,120 +350,153 @@ export function LoginForm() {
         />
         <Button 
           type="submit" 
-          className="w-full" 
+          className="w-full hover:scale-105 transform transition-transform duration-200"
           disabled={isSubmitting || isGoogleSubmitting}
+          asChild
         >
-          {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          회원가입
+          <motion.button whileTap={{ scale: 0.98 }}>
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            회원가입
+          </motion.button>
         </Button>
       </form>
     </Form>
   );
+
+  const formVariants = {
+    hidden: (direction: number) => ({
+      opacity: 0,
+      x: direction > 0 ? 100 : -100, // Slide from right or left
+      scale: 0.95,
+    }),
+    visible: {
+      opacity: 1,
+      x: 0,
+      scale: 1,
+      transition: { type: "spring", stiffness: 260, damping: 25 },
+    },
+    exit: (direction: number) => ({
+      opacity: 0,
+      x: direction < 0 ? 100 : -100, // Slide to right or left
+      scale: 0.95,
+      transition: { type: "spring", stiffness: 260, damping: 25, duration: 0.3 }, // Added duration for exit
+    }),
+  };
+
+  const Input = motion(UiInput); // Create a motion version of the Input component
+  const MotionButton = motion(Button); // Create a motion version of the Button component
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, ease: "easeInOut" }}
-      className="flex flex-col items-center w-full max-w-sm -mt-24"
+      className="flex flex-col items-center w-full max-w-md -mt-24"
     >
       {/* 로고 */}
-      <div className="w-full flex justify-center mb-6">
+      <div className="w-full flex justify-center mb-8">
         <Image 
           src="/adpopcorn-logo.png"
           alt="Adpopcorn Logo" 
-          width={200}
-          height={60}
+          width={240}
+          height={72}
           priority
-          className="h-auto w-48"
+          className="h-auto w-56"
         />
       </div>
       
-      <div className="relative w-full min-h-[400px]">
-        {/* 로그인 폼 */}
-        <div 
-          className={cn(
-            "absolute inset-0 w-full transition-all duration-300 ease-in-out motion-reduce:transition-none",
-            mode === 'login' 
-              ? 'opacity-100 translate-x-0 z-10' 
-              : 'opacity-0 translate-x-4 pointer-events-none'
-          )}
-          role="tabpanel"
-          aria-labelledby="login-tab"
-        >
-          <Card className="w-full shadow-lg hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <CardTitle className="text-2xl">로그인</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {renderLoginForm()}
-              
-              <div className="relative my-4">
-                <Separator className="absolute left-0 top-1/2 -translate-y-1/2 w-full" />
-                <span className="relative bg-card px-2 text-sm text-muted-foreground flex justify-center">
-                  또는
-                </span>
-              </div>
-              
-              <Button 
-                variant="outline" 
-                className="w-full" 
-                onClick={handleGoogleAuth}
-                disabled={isSubmitting || isGoogleSubmitting}
-              >
-                {isGoogleSubmitting ? (
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                ) : (
-                  <GoogleIcon />
-                )}
-                Google로 로그인
-              </Button>
-            </CardContent>
-            <CardFooter className="justify-center text-sm pt-2">
-              <span className="text-muted-foreground">계정이 없으신가요? </span>
-              <Button 
-                variant="link" 
-                className="p-0 h-auto font-semibold text-blue-600 ml-2" 
-                onClick={() => handleModeSwitch('signup')}
-                disabled={isTransitioning}
-              >
-                회원가입
-              </Button>
-            </CardFooter>
-          </Card>
-        </div>
+      <div className="relative w-full min-h-[480px]">
+        <AnimatePresence initial={false} mode="wait" custom={mode === 'login' ? 1 : -1}>
+          {mode === 'login' && (
+            <motion.div
+              key="login"
+              custom={1} // Direction: 1 for login (comes from right or goes to left)
+              variants={formVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="absolute inset-0 w-full" // Removed transition classes
+              role="tabpanel"
+              aria-labelledby="login-tab"
+            >
+              <Card className="w-full shadow-xl hover:shadow-2xl transition-shadow duration-300 bg-gradient-to-br from-white to-slate-50 rounded-lg">
+                <CardHeader className="pt-8">
+                  <CardTitle className="text-3xl font-bold text-center">로그인</CardTitle>
+                </CardHeader>
+                <CardContent className="p-8 space-y-6">
+                  {renderLoginForm()}
 
-        {/* 회원가입 폼 */}
-        <div 
-          className={cn(
-            "absolute inset-0 w-full transition-all duration-300 ease-in-out motion-reduce:transition-none",
-            mode === 'signup' 
-              ? 'opacity-100 translate-x-0 z-10' 
-              : 'opacity-0 -translate-x-4 pointer-events-none'
+                  <div className="relative my-6">
+                    <Separator className="absolute left-0 top-1/2 -translate-y-1/2 w-full bg-slate-200" />
+                    <span className="relative bg-gradient-to-br from-white to-slate-50 px-2 text-xs text-slate-400 flex justify-center">
+                      또는
+                    </span>
+                  </div>
+
+                  <MotionButton
+                    variant="default"
+                    className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 hover:scale-105 transform transition-all duration-200 rounded-md"
+                    onClick={handleGoogleAuth}
+                    disabled={isSubmitting || isGoogleSubmitting}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    {isGoogleSubmitting ? (
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    ) : (
+                      <GoogleIcon />
+                    )}
+                    Google로 로그인
+                  </MotionButton>
+                </CardContent>
+                <CardFooter className="justify-center text-sm pt-6 pb-8">
+                  <span className="text-muted-foreground">계정이 없으신가요? </span>
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto font-semibold text-blue-600 hover:text-blue-500 hover:underline ml-2"
+                    onClick={() => handleModeSwitch('signup')}
+                    // disabled={isTransitioning} // Let AnimatePresence handle disabling interaction
+                  >
+                    회원가입
+                  </Button>
+                </CardFooter>
+              </Card>
+            </motion.div>
           )}
-          role="tabpanel"
-          aria-labelledby="signup-tab"
-        >
-          <Card className="w-full shadow-lg hover:shadow-xl transition-shadow">
-            <CardHeader>
-              <CardTitle className="text-2xl">회원가입</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {renderSignupForm()}
-            </CardContent>
-            <CardFooter className="justify-center text-sm pt-2">
-              <span className="text-muted-foreground">이미 계정이 있으신가요? </span>
-              <Button 
-                variant="link" 
-                className="p-0 h-auto font-semibold text-blue-600 ml-1" 
-                onClick={() => handleModeSwitch('login')}
-                disabled={isTransitioning}
-              >
-                로그인
-              </Button>
-            </CardFooter>
-          </Card>
-        </div>
+
+          {mode === 'signup' && (
+            <motion.div
+              key="signup"
+              custom={-1} // Direction: -1 for signup (comes from left or goes to right)
+              variants={formVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="absolute inset-0 w-full" // Removed transition classes
+              role="tabpanel"
+              aria-labelledby="signup-tab"
+            >
+              <Card className="w-full shadow-xl hover:shadow-2xl transition-shadow duration-300 bg-gradient-to-br from-white to-slate-50 rounded-lg">
+                <CardHeader className="pt-8">
+                  <CardTitle className="text-3xl font-bold text-center">회원가입</CardTitle>
+                </CardHeader>
+                <CardContent className="p-8 space-y-6">
+                  {renderSignupForm()}
+                </CardContent>
+                <CardFooter className="justify-center text-sm pt-6 pb-8">
+                  <span className="text-muted-foreground">이미 계정이 있으신가요? </span>
+                  <Button
+                    variant="link"
+                    className="p-0 h-auto font-semibold text-blue-600 hover:text-blue-500 hover:underline ml-1"
+                    onClick={() => handleModeSwitch('login')}
+                    // disabled={isTransitioning} // Let AnimatePresence handle disabling interaction
+                  >
+                    로그인
+                  </Button>
+                </CardFooter>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.div>
   );
