@@ -23,9 +23,14 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { LogOut } from "lucide-react";
 import { UserCircleIcon } from '@/components/icons/UserCircleIcon';
+import Link from 'next/link';
+import { useMemo } from 'react';
+import { useAdminEmail } from '@/hooks/use-admin-email';
 
 export function UserNav() {
   const { user, logout, isAuthenticated } = useAuth();
+  const adminEmail = useAdminEmail();
+  const isAdmin = useMemo(() => user?.email === adminEmail, [user?.email, adminEmail]);
 
   if (!isAuthenticated || !user) {
     return null;
@@ -53,6 +58,11 @@ export function UserNav() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {isAdmin && (
+          <DropdownMenuItem>
+            <Link href="/admin">어드민 페이지</Link>
+          </DropdownMenuItem>
+        )}
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <DropdownMenuItem onSelect={(event) => event.preventDefault()}>

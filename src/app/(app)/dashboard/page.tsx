@@ -20,8 +20,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { useAdminEmail } from '@/hooks/use-admin-email';
 
-const ADMIN_EMAIL = 'jirrral@gmail.com';
 const STATUS_OPTIONS_KOREAN = ["처리 전", "처리 중", "보류 중", "처리 완료", "종료됨", "정보 필요"];
 const ITEMS_PER_PAGE = 20;
 
@@ -38,6 +38,7 @@ interface FlattenedDataRow extends SubmittedInquiryDataRow {
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const adminEmail = useAdminEmail();
   const { toast } = useToast();
   const [submittedInquiries, setSubmittedInquiries] = useState<SubmittedInquiry[]>([]);
   const [isLoadingInquiries, setIsLoadingInquiries] = useState(true);
@@ -57,7 +58,7 @@ export default function DashboardPage() {
   const [bulkStatus, setBulkStatus] = useState<string>('');
   const [isBulkUpdating, setIsBulkUpdating] = useState(false);
 
-  const isAdmin = useMemo(() => user?.email === ADMIN_EMAIL, [user?.email]);
+  const isAdmin = useMemo(() => user?.email === adminEmail, [user?.email, adminEmail]);
 
   useEffect(() => {
     setMounted(true);

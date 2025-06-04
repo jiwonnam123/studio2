@@ -27,7 +27,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   if (isLoading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-gradient-to-br from-slate-50 to-sky-100">
+      <div className="flex h-screen w-screen items-center justify-center bg-gradient-to-br from-violet-50 to-blue-100">
         <motion.div // Optional: Animate the loader itself
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -42,7 +42,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
   if (isAuthenticated) { // This case might not need complex animation as it's a redirect state
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-gradient-to-br from-slate-50 to-sky-100">
+      <div className="flex h-screen w-screen items-center justify-center bg-gradient-to-br from-violet-50 to-blue-100">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
         <p className="ml-4 text-lg text-foreground">리디렉션 중...</p>
       </div>
@@ -50,7 +50,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-sky-100 p-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-violet-50 to-blue-100 p-4">
       {/* Wrapper to provide size and relative positioning context for animations */}
       <div className="relative w-full max-w-md" style={wrapperStyle}>
         <AnimatePresence mode="wait">

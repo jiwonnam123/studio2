@@ -419,7 +419,7 @@ export function LoginForm() {
               role="tabpanel"
               aria-labelledby="login-tab"
             >
-              <Card className="w-full shadow-xl hover:shadow-2xl transition-shadow duration-300 bg-gradient-to-br from-white to-slate-50 rounded-lg">
+              <Card className="w-full shadow-xl hover:shadow-2xl transition-shadow duration-300 bg-gradient-to-br from-violet-50 to-blue-100 rounded-lg">
                 <CardHeader className="pt-8">
                   <CardTitle className="text-3xl font-bold text-center">로그인</CardTitle>
                 </CardHeader>
@@ -428,7 +428,7 @@ export function LoginForm() {
 
                   <div className="relative my-6">
                     <Separator className="absolute left-0 top-1/2 -translate-y-1/2 w-full bg-slate-200" />
-                    <span className="relative bg-gradient-to-br from-white to-slate-50 px-2 text-xs text-slate-400 flex justify-center">
+                    <span className="relative bg-gradient-to-br from-violet-50 to-blue-100 px-2 text-xs text-slate-400 flex justify-center">
                       또는
                     </span>
                   </div>
@@ -475,7 +475,7 @@ export function LoginForm() {
               role="tabpanel"
               aria-labelledby="signup-tab"
             >
-              <Card className="w-full shadow-xl hover:shadow-2xl transition-shadow duration-300 bg-gradient-to-br from-white to-slate-50 rounded-lg">
+              <Card className="w-full shadow-xl hover:shadow-2xl transition-shadow duration-300 bg-gradient-to-br from-violet-50 to-blue-100 rounded-lg">
                 <CardHeader className="pt-8">
                   <CardTitle className="text-3xl font-bold text-center">회원가입</CardTitle>
                 </CardHeader>
