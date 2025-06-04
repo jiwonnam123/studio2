@@ -1,0 +1,16 @@
+{
+  "functions": {
+    "source": "functions"
+  },
+  "hosting": {
+    "source": ".next",
+    "frameworksBackend": {
+      "region": "asia-northeast3"
+    },
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
+  }
+}

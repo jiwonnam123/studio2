@@ -1,0 +1,173 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Responsive html font-size for consistent scaling */
+  html {
+    /* Default font size for very small screens */
+    font-size: 13px;
+  }
+
+  /* Responsive font size for screens between 360px and 1280px */
+  /* This formula linearly scales font-size from 13px at 360px vw to 16px at 1280px vw. */
+  @media (min-width: 360px) and (max-width: 1279.98px) {
+    html {
+      font-size: calc(13px + (16 - 13) * ((100vw - 360px) / (1280 - 360)));
+    }
+  }
+
+  /* Font size for larger screens (1280px and up) */
+  @media (min-width: 1280px) {
+    html {
+      font-size: 16px; /* Standard base font size for desktop */
+    }
+  }
+
+  /* CSS Custom Properties (Theme Variables) */
+  :root {
+    /* Base Colors */
+    --background: 0 0% 100%; /* Pure White */
+    --foreground: 0 0% 20%; /* Dark Gray for text */
+
+    /* Card Colors */
+    --card: 0 0% 100%; /* White */
+    --card-foreground: 0 0% 20%; /* Dark Gray */
+
+    /* Popover Colors */
+    --popover: 0 0% 100%; /* White */
+    --popover-foreground: 0 0% 20%; /* Dark Gray */
+
+    /* Primary Colors - Light Gray */
+    --primary: 0 0% 95%; /* Very Light Gray */
+    --primary-foreground: 0 0% 20%; /* Dark Gray */
+
+    /* Secondary Colors - Slightly Darker Gray */
+    --secondary: 0 0% 96%; /* Off-White */
+    --secondary-foreground: 0 0% 25%; /* Dark Gray */
+
+    /* Muted Colors - Light Gray */
+    --muted: 0 0% 97%; /* Very Light Gray */
+    --muted-foreground: 0 0% 45%; /* Medium Gray */
+
+    /* Accent Colors - Subtle Blue */
+    --accent: 210 20% 90%; /* Very Light Blue Gray */
+    --accent-foreground: 210 20% 30%; /* Dark Blue Gray */
+
+    /* Status Colors */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* UI Elements */
+    --border: 0 0% 90%; /* Light Gray */
+    --input: 0 0% 93%; /* Very Light Gray */
+    --ring: 0 0% 95%; /* Very Light Gray */
+    --gradient-from: 0 0% 98%; /* Off-White */
+    --gradient-to: 0 0% 95%; /* Very Light Gray */
+
+    --radius: 0.5rem;
+
+    /* Sidebar specific theme */
+    --sidebar-background: 0 0% 98%; /* Off-White */
+    --sidebar-foreground: 0 0% 25%; /* Dark Gray */
+    --sidebar-primary: 0 0% 95%; /* Very Light Gray */
+    --sidebar-primary-foreground: 0 0% 25%; /* Dark Gray */
+    --sidebar-accent: 210 20% 90%; /* Very Light Blue Gray */
+    --sidebar-accent-foreground: 210 20% 30%; /* Dark Blue Gray */
+    --sidebar-border: 0 0% 90%; /* Light Gray */
+    --sidebar-ring: 0 0% 95%; /* Very Light Gray */
+
+    /* Chart Colors - Muted and Professional */
+    --chart-1: 200 60% 60%; /* Soft Blue */
+    --chart-2: 160 50% 50%; /* Teal */
+    --chart-3: 30 80% 60%; /* Orange */
+    --chart-4: 280 50% 65%; /* Lavender */
+    --chart-5: 340 60% 65%; /* Soft Pink */
+  }
+
+  .direct-entry-grid {
+  background-color: #f5f5f5 !important;
+}
+
+/* Header and row number cells */
+.direct-entry-grid th,
+.direct-entry-grid td.sticky {
+  background-color: #f5f5f5 !important;
+}
+
+/* Data cells */
+.direct-entry-grid td:not(.sticky) {
+  background-color: white !important;
+}
+
+/* Hover effect for rows */
+.direct-entry-grid tr:hover td:not(.sticky) {
+  background-color: #f8f8f8 !important;
+}
+
+.dark {
+    /* Base Colors */
+    --background: 0 0% 10%; /* Very Dark Gray */
+    --foreground: 0 0% 90%; /* Light Gray */
+
+    /* Card Colors */
+    --card: 0 0% 15%; /* Dark Gray */
+    --card-foreground: 0 0% 90%; /* Light Gray */
+
+    /* Popover Colors */
+    --popover: 0 0% 15%; /* Dark Gray */
+    --popover-foreground: 0 0% 90%; /* Light Gray */
+
+    /* Primary Colors - Dark Gray */
+    --primary: 0 0% 20%; /* Dark Gray */
+    --primary-foreground: 0 0% 98%; /* Off-White */
+
+    /* Secondary Colors - Slightly Lighter Gray */
+    --secondary: 0 0% 25%; /* Medium Gray */
+    --secondary-foreground: 0 0% 98%; /* Off-White */
+
+    /* Muted Colors - Dark Gray */
+    --muted: 0 0% 20%; /* Dark Gray */
+    --muted-foreground: 0 0% 63.9%; /* Medium Gray */
+
+    /* Accent Colors - Subtle Blue */
+    --accent: 210 30% 30%; /* Dark Blue Gray */
+    --accent-foreground: 0 0% 98%; /* Off-White */
+
+    /* Status Colors */
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* UI Elements */
+    --border: 0 0% 25%; /* Medium Gray */
+    --input: 0 0% 20%; /* Dark Gray */
+    --ring: 0 0% 30%; /* Medium Gray */
+    --gradient-from: 0 0% 15%; /* Dark Gray */
+    --gradient-to: 0 0% 20%; /* Slightly Lighter Dark Gray */
+
+    /* Dark Sidebar specific theme */
+    --sidebar-background: 0 0% 12%; /* Very Dark Gray */
+    --sidebar-foreground: 0 0% 85%; /* Light Gray */
+    --sidebar-primary: 0 0% 20%; /* Dark Gray */
+    --sidebar-primary-foreground: 0 0% 98%; /* Off-White */
+    --sidebar-accent: 210 30% 30%; /* Dark Blue Gray */
+    --sidebar-accent-foreground: 0 0% 98%; /* Off-White */
+    --sidebar-border: 0 0% 25%; /* Medium Gray */
+    --sidebar-ring: 0 0% 30%; /* Medium Gray */
+
+    /* Chart Colors - Muted and Professional */
+    --chart-1: 200 60% 60%; /* Soft Blue */
+    --chart-2: 160 50% 50%; /* Teal */
+    --chart-3: 30 80% 60%; /* Orange */
+    --chart-4: 280 50% 65%; /* Lavender */
+    --chart-5: 340 60% 65%; /* Soft Pink */
+  }
+
+  /* Global Styles */
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply text-foreground bg-background;
+  }
+}
