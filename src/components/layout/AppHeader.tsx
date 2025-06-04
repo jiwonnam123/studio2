@@ -12,7 +12,7 @@ export function AppHeader() {
   const isAdmin = user?.email === ADMIN_EMAIL;
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b bg-card px-4 sm:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-4 border-b bg-white px-4 sm:px-6">
       {/* Left section (now contains logo) */}
       <div className="flex-1 flex items-center gap-4">
         {isAdmin && (
