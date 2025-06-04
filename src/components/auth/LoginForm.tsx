@@ -39,7 +39,7 @@ const GoogleIcon = () => (
 );
 
 export function LoginForm() {
-  const { login, loginWithGoogle, signup } = useAuth();
+  const { login, loginWithGoogle, register: registerUser } = useAuth();
   const router = useRouter();
   const [mode, setMode] = useState<AuthMode>('login');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -60,6 +60,7 @@ export function LoginForm() {
   const signupForm = useForm<z.infer<typeof SignupSchema>>({
     resolver: zodResolver(SignupSchema),
     defaultValues: {
+      name: "",
       email: "",
       password: "",
       confirmPassword: "",
@@ -103,7 +104,7 @@ export function LoginForm() {
 
     setIsSubmitting(true);
     try {
-      await signup(data.email, data.password);
+      await registerUser(data.email, data.name, data.password);
       toast({
         title: "회원가입 성공",
         description: "가입을 환영합니다!",
@@ -252,6 +253,25 @@ export function LoginForm() {
   const renderSignupForm = () => (
     <Form {...signupForm}>
       <form onSubmit={signupForm.handleSubmit(onSignup)} className="space-y-6">
+        <FormField
+          control={signupForm.control}
+          name="name"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>이름</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="이름을 입력하세요"
+                  {...field}
+                  disabled={isSubmitting || isGoogleSubmitting}
+                  className="rounded-md focus:border-primary transition-colors duration-200"
+                  whileFocus={{ scale: 1.02 }}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <FormField
           control={signupForm.control}
           name="email"
