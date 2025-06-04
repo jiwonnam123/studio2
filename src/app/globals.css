@@ -26,8 +26,8 @@
 
   /* CSS Custom Properties (Theme Variables) */
   :root {
-    --background: 0 0% 96%; /* Pale Grey #F5F5F5 */
-    --foreground: 210 10% 23%; /* Darker Muted Blue for text */
+    --background: 245 100% 97%; /* Light Lavender */
+    --foreground: 245 15% 20%; /* Deep Violet for text */
 
     --card: 0 0% 100%; /* White */
     --card-foreground: 210 10% 23%;
@@ -35,36 +35,38 @@
     --popover: 0 0% 100%; /* White */
     --popover-foreground: 210 10% 23%;
 
-    --primary: 240 67% 94%; /* Soft Lavender #E6E6FA */
-    --primary-foreground: 240 60% 20%; /* Darker lavender for text on primary */
+    --primary: 245 100% 94%; /* Unified Lavender */
+    --primary-foreground: 245 60% 20%;
 
-    --secondary: 0 0% 90%; /* Lighter grey for secondary elements */
-    --secondary-foreground: 210 10% 23%;
+    --secondary: 245 30% 95%;
+    --secondary-foreground: 245 20% 30%;
 
-    --muted: 0 0% 85%; /* Grey for muted text/elements */
-    --muted-foreground: 0 0% 45%; /* Darker grey for muted text */
+    --muted: 245 20% 90%;
+    --muted-foreground: 245 10% 45%;
 
-    --accent: 210 25% 68%; /* Muted Blue #A9B7C2 */
-    --accent-foreground: 210 25% 15%; /* Darker blue for text on accent */
+    --accent: 230 60% 80%;
+    --accent-foreground: 230 50% 20%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 0 0% 88%;
-    --input: 0 0% 92%;
-    --ring: 240 67% 94%; /* Soft Lavender for focus rings */
+    --border: 245 20% 88%;
+    --input: 245 20% 92%;
+    --ring: 245 100% 94%;
+    --gradient-from: 245 100% 95%;
+    --gradient-to: 210 100% 96%;
 
     --radius: 0.5rem;
 
     /* Sidebar specific theme */
-    --sidebar-background: 220 15% 92%; /* Very light, cool grey */
-    --sidebar-foreground: 220 10% 30%;
-    --sidebar-primary: 240 67% 94%; /* Lavender as accent in sidebar */
-    --sidebar-primary-foreground: 240 50% 25%;
-    --sidebar-accent: 210 17% 85%; /* Lighter muted blue */
-    --sidebar-accent-foreground: 210 17% 30%;
-    --sidebar-border: 220 15% 85%;
-    --sidebar-ring: 240 67% 94%; /* Soft Lavender for focus rings in sidebar */
+    --sidebar-background: 245 30% 95%;
+    --sidebar-foreground: 245 20% 30%;
+    --sidebar-primary: 245 100% 94%;
+    --sidebar-primary-foreground: 245 60% 20%;
+    --sidebar-accent: 230 60% 80%;
+    --sidebar-accent-foreground: 230 50% 20%;
+    --sidebar-border: 245 20% 85%;
+    --sidebar-ring: 245 100% 94%;
 
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
@@ -74,43 +76,45 @@
   }
 
   .dark {
-    --background: 210 10% 10%; 
+    --background: 245 20% 10%;
     --foreground: 0 0% 95%;
 
-    --card: 210 10% 12%;
+    --card: 245 20% 12%;
     --card-foreground: 0 0% 95%;
 
-    --popover: 210 10% 12%;
+    --popover: 245 20% 12%;
     --popover-foreground: 0 0% 95%;
 
-    --primary: 240 50% 60%; /* Darker Lavender */
+    --primary: 245 40% 50%;
     --primary-foreground: 0 0% 98%;
 
-    --secondary: 210 10% 20%;
+    --secondary: 245 20% 20%;
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 210 10% 25%;
+    --muted: 245 20% 25%;
     --muted-foreground: 0 0% 63.9%;
 
-    --accent: 210 20% 50%; /* Darker Muted Blue */
+    --accent: 230 30% 40%;
     --accent-foreground: 0 0% 98%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 210 10% 30%;
-    --input: 210 10% 28%;
-    --ring: 240 50% 60%;
+    --border: 245 20% 30%;
+    --input: 245 20% 28%;
+    --ring: 245 40% 50%;
+    --gradient-from: 245 40% 20%;
+    --gradient-to: 210 30% 20%;
 
     /* Dark Sidebar specific theme */
-    --sidebar-background: 210 10% 15%; 
+    --sidebar-background: 245 20% 15%;
     --sidebar-foreground: 0 0% 90%;
-    --sidebar-primary: 240 50% 60%; 
+    --sidebar-primary: 245 40% 50%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 210 20% 40%; 
+    --sidebar-accent: 230 30% 40%;
     --sidebar-accent-foreground: 0 0% 95%;
-    --sidebar-border: 210 10% 25%;
-    --sidebar-ring: 240 50% 60%;
+    --sidebar-border: 245 20% 25%;
+    --sidebar-ring: 245 40% 50%;
 
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
@@ -124,6 +128,7 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
+    background-image: linear-gradient(135deg, hsl(var(--gradient-from)), hsl(var(--gradient-to)));
   }
 }

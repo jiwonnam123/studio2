@@ -562,9 +562,9 @@ export function InquiryModal({ open, onOpenChange }: InquiryModalProps) {
             <Button 
               onClick={handleSubmitInquiry} 
               disabled={isSubmitDisabled}
-              className={isSubmitting 
-                ? "cursor-not-allowed opacity-50" 
-                : "bg-gradient-to-r from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white font-semibold opacity-90"}
+              className={isSubmitting
+                ? "cursor-not-allowed opacity-50"
+                : "bg-gradient-to-r from-violet-500 to-blue-500 hover:from-violet-600 hover:to-blue-600 text-white font-semibold opacity-90"}
             >
               {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               접수
